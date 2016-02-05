@@ -17,6 +17,25 @@
 ;; Constants / Predicates
 ;;------------------------------------------------------------------------------
 
+;; TODO: prefix these with parinferlib-- ?
+(defconst BACKSLASH "\\")
+(defconst BLANK_SPACE " ")
+(defconst DOUBLE_SPACE "  ")
+(defconst DOUBLE_QUOTE "\"")
+(defconst NEWLINE "\n")
+(defconst SEMICOLON ";")
+(defconst TAB "\t")
+
+(defun parinferlib--open-paren? (ch)
+  (or (string= "(" ch)
+      (string= "{" ch)
+      (string= "[" ch)))
+
+(defun parinferlib--close-paren? (ch)
+  (or (string= ")" ch)
+      (string= "}" ch)
+      (string= "]" ch)))
+
 ;;------------------------------------------------------------------------------
 ;; Result Structure
 ;;------------------------------------------------------------------------------
@@ -26,19 +45,19 @@
     (puthash :mode mode result)
 
     (puthash :origText text result)
-    (puthash :origLines "TODO: figure out how to split-lines" result)
+    (puthash :origLines (vconcat (split-string text NEWLINE)) result)
 
     (puthash :lines [] result)
     (puthash :lineNo -1 result)
     (puthash :ch "" result)
     (puthash :x 0 result)
 
-    (puthash :parenStack [] result)
+    (puthash :parenStack '() result)
 
     (puthash :parenTrailLineNo nil result)
     (puthash :parenTrailStartX nil result)
     (puthash :parenTrailEndX nil result)
-    (puthash :parenTrailOpeners [] result)
+    (puthash :parenTrailOpeners '() result)
 
     (puthash :cursorX cursor-x result)
     (puthash :cursorLine cursor-line result)
@@ -71,37 +90,92 @@
 ;; Errors
 ;;------------------------------------------------------------------------------
 
+;; TODO: write this section
+
 ;;------------------------------------------------------------------------------
 ;; String Operations
 ;;------------------------------------------------------------------------------
+
+(defun parinferlib--insert-within-string (orig idx insert)
+  (concat (substring orig 0 idx)
+          insert
+          (substring orig idx)))
+
+(defun parinferlib--replace-within-string (orig start end replace)
+  (concat (substring orig 0 start)
+          replace
+          (substring orig end)))
+
+(defun parinferlib--remove-within-string (orig start end)
+  (concat (substring orig 0 start)
+          (substring orig end)))
 
 ;;------------------------------------------------------------------------------
 ;; Line Operations
 ;;------------------------------------------------------------------------------
 
+(defun parinferlib--insert-within-line (result lineNo idx insert)
+  (let (lines (gethash :lines result)
+        line (aref lines lineNo)
+        new-line (parinferlib--insert-within-string line idx insert)
+        new-lines (aset lines lineNo new-line))
+    (puthash :lines new-lines result)))
+
+(defun parinferlib--replace-within-line (result lineNo start end replace)
+  (let (lines (gethash :lines result)
+        line (aref lines lineNo)
+        new-line (parinferlib--replace-within-string line start end replace)
+        new-lines (aset lines lineNo new-line))
+    (puthash :lines new-lines result)))
+
+(defun parinferlib--remove-within-line (result lineNo start end)
+  (let (lines (gethash :lines result)
+        line (aref lines lineNo)
+        new-line (parinferlib--remove-within-string line start end)
+        new-lines (aset lines lineNo new-line))
+    (puthash :lines new-lines result)))
+
+(defun parinferlib--init-line (result line)
+  (let (current-line-no (gethash :lineNo result)
+        lines (gethash :lines result)
+        new-lines (vconcat lines [line]))
+    (puthash :x 0 result)
+    (puthash :lineNo (1+ current-line-no) result)
+    (puthash :lines new-lines result)
+
+    ;; reset line-specific state
+    (puthash :commentX nil result)
+    (puthash :indentDelta 0 result)))
+
 ;;------------------------------------------------------------------------------
 ;; Util
 ;;------------------------------------------------------------------------------
+
+;; TODO: write this section
 
 ;;------------------------------------------------------------------------------
 ;; Character functions
 ;;------------------------------------------------------------------------------
 
+;; TODO: write this section
+
 ;;------------------------------------------------------------------------------
 ;; Cursor functions
 ;;------------------------------------------------------------------------------
+
+;; TODO: write this section
 
 ;;------------------------------------------------------------------------------
 ;; Paren Trail functions
 ;;------------------------------------------------------------------------------
 
-;;------------------------------------------------------------------------------
-;; Indentation functions
-;;------------------------------------------------------------------------------
+;; TODO: write this section
 
 ;;------------------------------------------------------------------------------
 ;; Indentation functions
 ;;------------------------------------------------------------------------------
+
+;; TODO: write this section
 
 ;;------------------------------------------------------------------------------
 ;; High-level processing functions
