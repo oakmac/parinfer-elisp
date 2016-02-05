@@ -15,6 +15,6 @@
 (println "Running Parinfer Tests")
 (squiggly-line)
 
-(parinferlib-indent-mode nil nil nil nil)
+(print (parinferlib-indent-mode nil nil nil nil))
 
 (princ "\n\n\n")

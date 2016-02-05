@@ -21,6 +21,52 @@
 ;; Result Structure
 ;;------------------------------------------------------------------------------
 
+(defun parinferlib--create-initial-result (text mode cursor-x cursor-line cursor-dx)
+  (let ((result (make-hash-table)))
+    (puthash :mode mode result)
+
+    (puthash :origText text result)
+    (puthash :origLines "TODO: figure out how to split-lines" result)
+
+    (puthash :lines [] result)
+    (puthash :lineNo -1 result)
+    (puthash :ch "" result)
+    (puthash :x 0 result)
+
+    (puthash :parenStack [] result)
+
+    (puthash :parenTrailLineNo nil result)
+    (puthash :parenTrailStartX nil result)
+    (puthash :parenTrailEndX nil result)
+    (puthash :parenTrailOpeners [] result)
+
+    (puthash :cursorX cursor-x result)
+    (puthash :cursorLine cursor-line result)
+    (puthash :cursorDx cursor-dx result)
+
+    (puthash :isInCode t result)
+    (puthash :isEscaping nil result)
+    (puthash :isInStr nil result)
+    (puthash :isInComment nil result)
+    (puthash :commentX nil result)
+
+    (puthash :quoteDanger nil result)
+    (puthash :trackingIndent nil result)
+    (puthash :skipChar nil result)
+    (puthash :success nil result)
+
+    (puthash :maxIndent nil result)
+    (puthash :indentDelta 0 result)
+
+    (puthash :errorName nil result)
+    (puthash :errorMessage nil result)
+    (puthash :errorLineNo nil result)
+    (puthash :errorX nil result)
+
+    (puthash :errorPosCache nil result) ;; TODO: this might need to be a hash-map?
+
+    result))
+
 ;;------------------------------------------------------------------------------
 ;; Errors
 ;;------------------------------------------------------------------------------
@@ -79,11 +125,11 @@
 
 (defun parinferlib-indent-mode (text cursor-x cursor-line cursor-dx)
   "Indent Mode public function."
-  (message "Hello from parinferlib!!! How's the weather there?"))
+  (parinferlib--create-initial-result text :indent cursor-x cursor-line cursor-dx))
 
 (defun parinferlib-paren-mode (text cursor-x cursor-line cursor-dx)
   "Paren Mode public function"
-  nil)
+  (parinferlib--create-initial-result text :paren cursor-x cursor-line cursor-dx))
 
 (provide 'parinferlib)
 
