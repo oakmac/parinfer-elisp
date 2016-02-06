@@ -1,5 +1,3 @@
-#!/usr/bin/env emacs --script
-
 ;; TODO: document this file
 
 (require 'json)

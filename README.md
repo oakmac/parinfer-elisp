@@ -21,7 +21,7 @@ improvement in this implementation. PR's welcome :)
 ## Run Tests
 
 ```sh
-./test.el
+emacs --script test.el
 ```
 
 ## Usage
