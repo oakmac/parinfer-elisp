@@ -9,6 +9,9 @@
 ;; Released under the ISC license
 ;; https://github.com/oakmac/parinfer-elisp/blob/master/LICENSE.md
 
+;; NOTE: everything is namespaced under `parinferlib` with the assumption that
+;;       Emacs extensions might use `parinfer`
+
 ;;------------------------------------------------------------------------------
 ;; Constants / Predicates
 ;;------------------------------------------------------------------------------
@@ -171,22 +174,19 @@
   (let* ((lines (gethash :lines result))
          (line (aref lines line-no))
          (new-line (parinferlib--insert-within-string line idx insert)))
-    (aset lines line-no new-line)
-    (puthash :lines lines result)))
+    (aset lines line-no new-line)))
 
 (defun parinferlib--replace-within-line (result line-no start end replace)
   (let* ((lines (gethash :lines result))
          (line (aref lines line-no))
          (new-line (parinferlib--replace-within-string line start end replace)))
-    (aset lines line-no new-line)
-    (puthash :lines lines result)))
+    (aset lines line-no new-line)))
 
 (defun parinferlib--remove-within-line (result line-no start end)
   (let* ((lines (gethash :lines result))
          (line (aref lines line-no))
          (new-line (parinferlib--remove-within-string line start end)))
-    (aset lines line-no new-line)
-    (puthash :lines lines result)))
+    (aset lines line-no new-line)))
 
 (defun parinferlib--init-line (result line)
   (let* ((current-line-no (gethash :lineNo result))
@@ -196,7 +196,6 @@
 
     (puthash :x 0 result)
     (puthash :lineNo new-line-no result)
-    (puthash :lines lines result)
 
     ;; reset line-specific state
     (puthash :commentX nil result)
