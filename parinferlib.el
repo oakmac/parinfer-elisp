@@ -116,7 +116,8 @@
     (puthash :errorLineNo nil result)
     (puthash :errorX nil result)
 
-    (puthash :errorPosCache (make-hash-table) result)
+    ;; a plist of potential error positions
+    (puthash :errorPosCache '() result)
 
     result))
 
@@ -131,18 +132,30 @@
 (defconst ERROR_UNCLOSED_PAREN "unclosed-paren")
 (defconst ERROR_UNHANDLED "unhandled")
 
-(defconst error-messages (make-hash-table))
-(puthash ERROR_QUOTE_DANGER   "Quotes must balanced inside comment blocks." error-messages)
-(puthash ERROR_EOL_BACKSLASH  "Line cannot end in a hanging backslash." error-messages)
-(puthash ERROR_UNCLOSED_QUOTE "String is missing a closing quote." error-messages)
-(puthash ERROR_UNCLOSED_PAREN "Unmatched open-paren." error-messages)
+(defconst ERROR_MESSAGES (make-hash-table :test 'equal))
+(puthash ERROR_QUOTE_DANGER   "Quotes must balanced inside comment blocks." ERROR_MESSAGES)
+(puthash ERROR_EOL_BACKSLASH  "Line cannot end in a hanging backslash." ERROR_MESSAGES)
+(puthash ERROR_UNCLOSED_QUOTE "String is missing a closing quote." ERROR_MESSAGES)
+(puthash ERROR_UNCLOSED_PAREN "Unmatched open-paren." ERROR_MESSAGES)
 
 (defun parinferlib--cache-error-pos (result error-name line-no x)
-  (let ((cache (gethash :errorPosCache result)))
-    (puthash error-name [line-no x] cache)
-    (puthash :errorPosCache cache result)))
+  (let* ((error-cache (gethash :errorPosCache result))
+         (updated-error-cache (plist-put error-cache error-name [line-no x])))
+    (puthash :errorPosCache updated-error-cache result)))
 
-;; TODO: error function here
+(defun parinferlib--create-error (result error-name line-no x)
+  (let* ((error-cache (gethash :errorPosCache result))
+         (error-msg (gethash error-name ERROR_MESSAGES))
+         (error-pos (plist-get error-cache error-name)))
+    (when (not line-no)
+      (setq line-no (aref error-pos 0)))
+    (when (not x)
+      (setq x (aref error-pos 1)))
+    ;; return a plist of the error
+    (list :name error-name
+          :message error-msg
+          :line-no line-no
+          :x x)))
 
 ;;------------------------------------------------------------------------------
 ;; String Operations
@@ -245,11 +258,6 @@
     (setq val-n (if (< max-n val-n) max-n val-n)))
   val-n)
 
-;; TODO: figure out what data structure to use for the stack
-;;       probably a list?
-(defun parinferlib--peek (a)
-  nil)
-
 ;;------------------------------------------------------------------------------
 ;; Character functions
 ;;------------------------------------------------------------------------------
@@ -322,8 +330,8 @@
            (puthash :quoteDanger (not quote-danger) result)
            (when (gethash :quoteDanger result)
              (let ((line-no (gethash :lineNo result))
-                   (x (gethash :x result))))
-             (parinferlib--cache-error-pos result ERROR_QUOTE_DANGER line-no x))))
+                   (x (gethash :x result)))
+               (parinferlib--cache-error-pos result ERROR_QUOTE_DANGER line-no x)))))
 
         (t
          (let ((line-no (gethash :lineNo result))
@@ -339,7 +347,10 @@
 (defun parinferlib--after-backslash (result)
   (puthash :isEscaping nil result)
   (when (string= (gethash :ch result) NEWLINE)
-    ;; TODO: figure out throw here
+    (when (gethash :isInCode result)
+      (let ((line-no (gethash :lineNo result))
+            (x (gethash :x result)))
+        (throw 'parinferlib-error (parinferlib--create-error result ERROR_EOL_BACKSLASH line-no (1- x)))))
     (parinferlib--on-newline result))
   nil)
 
@@ -574,7 +585,7 @@
   ;; (print "on proper indent")
   (puthash :trackingIndent nil result)
   (when (gethash :quoteDanger result)
-    ()) ;; TODO: figure out throw here
+    (throw 'parinferlib-error (parinferlib--create-error result ERROR_QUOTE_DANGER nil nil)))
   (let ((mode (gethash :mode result))
         (x (gethash :x result)))
     (when (equal mode :indent)
@@ -674,32 +685,45 @@
 
 (defun parinferlib--finalize-result (result)
   (when (gethash :quoteDanger result)
-    ()) ;; TODO: figure out throw here
+    (throw 'parinferlib-error
+           (parinferlib--create-error result ERROR_QUOTE_DANGER nil nil)))
   (when (gethash :isInStr result)
-    ()) ;; TODO: figure out throw here
+    (throw 'parinferlib-error
+           (parinferlib--create-error result ERROR_UNCLOSED_QUOTE nil nil)))
   (let* ((paren-stack (gethash :parenStack result))
          (mode (gethash :mode result)))
     (when (parinferlib--not-empty? paren-stack)
       (when (equal mode :paren)
-        ()) ;; TODO: figure out throw here
+        (let* ((paren-stack (gethash :parenStack result))
+               (opener (car paren-stack))
+               (opener-line-no (aref opener LINE_NO_IDX))
+               (opener-x (aref opener X_IDX)))
+          (throw 'parinferlib-error
+                 (parinferlib--create-error result ERROR_UNCLOSED_PAREN opener-line-no opener-x))))
       (when (equal mode :indent)
         (parinferlib--correct-paren-trail result 0))))
   (puthash :success t result)
   nil)
 
 (defun parinferlib--process-error (result err)
-  nil)
+  (puthash :success nil result))
+  ;; TODO: put the error value on result here
+  ;;(print "Error happened!")
+  ;;(print err))
 
 (defun parinferlib--process-text (text mode cursor-x cursor-line cursor-dx)
   (let* ((result (parinferlib--create-initial-result text mode cursor-x cursor-line cursor-dx))
          (orig-lines (gethash :origLines result))
          (lines-length (length orig-lines))
-         (i 0))
-    ;; TODO: figure out try / catch
-    (while (< i lines-length)
-      (parinferlib--process-line result (aref orig-lines i))
-      (setq i (1+ i)))
-    (parinferlib--finalize-result result)
+         (i 0)
+         (error (catch 'parinferlib-error
+                  (while (< i lines-length)
+                    (parinferlib--process-line result (aref orig-lines i))
+                    (setq i (1+ i)))
+                  (parinferlib--finalize-result result)
+                  nil)))
+    (when error
+      (parinferlib--process-error result error))
     result))
 
 (defun parinferlib--public-result (result)

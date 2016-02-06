@@ -50,7 +50,8 @@
 (squiggly-line)
 
 (defun run-test (mode test)
-  (let* ((in (plist-get test :in))
+  (let* ((mode-string (if (equal :indent mode) "Indent Mode" "Paren Mode"))
+         (in (plist-get test :in))
          (out (plist-get test :out))
          (test-id (number-to-string (plist-get in :fileLineNo)))
          (in-text (string-join (plist-get in :lines)))
@@ -72,11 +73,11 @@
     ;; in/out text equality
     (when (not (equal out-text-1 expected-text))
       ;; TODO: figure out how to print to stderr
-      (print (concat "In/Out text failure: test id " test-id)))
+      (print (concat mode-string " In/Out text failure: test id " test-id)))))
 
     ;; idempotence
-    (when (not (equal out-text-2 expected-text))
-      (print (concat "Idempotence failure: test id " test-id)))))
+    ; (when (not (equal out-text-2 expected-text))
+    ;  (print (concat mode-string " Idempotence failure: test id " test-id)))))
 
     ;; cross-mode preservation
     ;; TODO: write this
