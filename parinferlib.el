@@ -5,18 +5,9 @@
 ;; More information about Parinfer can be found here:
 ;; http://shaunlebron.github.io/parinfer/
 ;;
-;; Copyright (c) 2016, Chris Oakman and other contributors
+;; Copyright (c) 2016, Chris Oakman
 ;; Released under the ISC license
 ;; https://github.com/oakmac/parinferlib-emacs/blob/master/LICENSE.md
-
-;;; TODO: figure out the best approach for the header comment here
-;; http://www.gnu.org/software/emacs/manual/html_node/elisp/Library-Headers.html
-;; http://www.gnu.org/software/emacs/manual/html_node/elisp/Packaging-Basics.html
-
-;; TODO: write about the differences between this implementation and parinfer.js
-;; - using vectors for lines
-;; - using lists for stacks
-;; - using vector for stack elements
 
 ;;------------------------------------------------------------------------------
 ;; Constants / Predicates
