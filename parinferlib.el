@@ -231,11 +231,78 @@
                                  (gethash :x result)))
            (paren-stack (gethash :parenStack result))
            (new-paren-stack (cons new-stack-el paren-stack)))
-      (puthash :parenStack new-paren-stack result)
-      nil)))
+      (puthash :parenStack new-paren-stack result)))
+  nil)
 
 (defun parinferlib--on-matched-close-paren (result)
-  ;; TODO: write me
+  (let* ((paren-stack (gethash :parenStack result))
+         (opener (pop paren-stack))
+         (opener-x (aref opener X_IDX))
+         (result-x (gethash :x result))
+         (openers (gethash :parenTrailOpeners result))
+         (new-openers (cons opener openers)))
+    (puthash :parenTrailEndX (+1 result-x) result)
+    (puthash :parenTrailOpeners new-openers result)
+    (puthash :maxIndent opener-x result)
+    ;; the first element of paren-stack was removed when we called "pop" earlier
+    (puthash :parenStack paren-stack result))
+  nil)
+
+(defun parinferlib--on-unmatched-close-paren (result)
+  (puthash :ch "" result)
+  nil)
+
+(defun parinferlib--on-close-paren (result)
+  (when (gethash :isInCode result)
+    (if (parinferlib--valid-close-paren? (gethash :parenStack result) (gethash :ch result))
+      (parinferlib--on-matched-close-paren result)
+      (parinferlib--on-unmatched-close-paren result)))
+  nil)
+
+(defun parinferlib--on-tab (result)
+  (when (gethash :isInCode result)
+    (puthash :ch DOUBLE_SPACE result))
+  nil)
+
+(defun parinferlib--on-semicolon (result)
+  (when (gethash :isInCode result)
+    (puthash :isInComment t result)
+    (puthash :commentX (gethash :x result) result))
+  nil)
+
+(defun parinferlib--on-newline (result)
+  (puthash :isInComment nil result)
+  (puthash :ch "" result)
+  nil)
+
+(defun parinferlib--on-quote (result)
+  ;; TODO: write me; figure out throw
+  nil)
+
+(defun parinferlib--on-backslash (result)
+  (puthash :isEscaping t result)
+  nil)
+
+(defun parinferlib--after-backslash (result)
+  (puthash :isEscaping nil result)
+  (when (string= (gethash :ch result) NEWLINE)
+    ;; TODO: figure out throw here
+    (parinferlib--on-newline result))
+  nil)
+
+(defun parinferlib--on-char (result)
+  (let ((ch (gethash :ch result)))
+    (cond ((gethash :isEscaping result)   (parinferlib--after-backslash result))
+          ((parinferlib--open-paren? ch)  (parinferlib--on-open-paren result))
+          ((parinferlib--close-paren? ch) (parinferlib--on-close-paren result))
+          ((string= ch DOUBLE_QUOTE) (parinferlib--on-quote result))
+          ((string= ch SEMICOLON)    (parinferlib--on-semicolon result))
+          ((string= ch BACKSLASH)    (parinferlib--on-backslash result))
+          ((string= ch TAB)          (parinferlib--on-tab result))
+          ((string= ch NEWLINE)      (parinferlib--on-newline result))))
+  (let ((in-comment? (gethash :isInComment result))
+        (in-string? (gethash :isInStr result)))
+    (puthash :isInCode (and (not in-comment?) (not in-string?))) result)
   nil)
 
 ;;------------------------------------------------------------------------------
