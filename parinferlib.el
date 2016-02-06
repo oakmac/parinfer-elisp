@@ -18,13 +18,6 @@
 ;; - using lists for stacks
 ;; - using vector for stack elements
 
-;; A Stack Element is a Vector of 4 items (alphabetically ordered)
-;; idx : item
-;;   0 : ch
-;;   1 : indentDelta
-;;   2 : lineNo
-;;   3 : x
-
 ;;------------------------------------------------------------------------------
 ;; Constants / Predicates
 ;;------------------------------------------------------------------------------
@@ -38,6 +31,12 @@
 (defconst SEMICOLON ";")
 (defconst TAB "\t")
 
+;; A Stack Element is a Vector of 4 items (alphabetically ordered)
+;; idx : item
+;;   0 : ch
+;;   1 : indentDelta
+;;   2 : lineNo
+;;   3 : x
 (defconst CH_IDX 0)
 (defconst INDENT_DELTA_IDX 1)
 (defconst LINE_NO_IDX 2)
@@ -454,16 +453,49 @@
         (parinferlib--remove-within-line result (gethash :lineNo result) start-x end-x))))
   nil)
 
-(defun parinferlib--correct-paren-trail (result)
+(defun parinferlib--correct-paren-trail (result indent-x)
   (let ((parens "")
         (paren-stack (gethash :parenStack result))
         (break? nil))
-    (while (> (length paren-stack) 0)
-      ())) ;; TODO: finish this
+    (while (and (> (length paren-stack) 0)
+                (not break?))
+      (let* ((opener (car paren-stack))
+             (opener-x (aref opener X_IDX))
+             (opener-ch (aref opener CH_IDX)))
+        (if (>= opener-x indent-x)
+          (progn (pop paren-stack)
+                 (setq parens (concat parens (gethash opener-ch PARENS))))
+          (setq break? t))))
+    (puthash :parenStack paren-stack result)
+    (let ((paren-trail-line-no (gethash :parenTrailLineNo result))
+          (paren-trail-start-x (gethash :parenTrailStartX result)))
+      (parinferlib--insert-within-line result paren-trail-line-no paren-trail-start-x parens)))
   nil)
 
 (defun parinferlib--clean-paren-trail (result)
-  ;; TODO: write me
+  (let* ((start-x (gethash :parenTrailStartX result))
+         (end-x (gethash :parenTrailEndX result))
+         (line-no (gethash :lineNo result))
+         (paren-trail-line-no (gethash :parenTrailLineNo result))
+         (exit-early? (or (equal start-x end-x)
+                          (not (equal line-no paren-trail-line-no)))))
+    (when (not exit-early?)
+      (let* ((lines (gethash :lines result))
+             (line (aref lines line-no))
+             (new-trail "")
+             (space-count 0)
+             (i start-x))
+        (while (< i end-x)
+          (let ((ch (string (aref line i))))
+            (if (parinferlib--close-paren? ch)
+              (setq new-trail (concat new-trail ch))
+              (setq space-count (1+ space-count))))
+          (setq i (1+ i)))
+        (when (> space-count 0)
+          (parinferlib--replace-within-line result line-no start-x end-x new-trail)
+          (let* ((paren-trail-end-x (gethash :parenTrailEndX result))
+                 (new-pt-end-x (- paren-trail-end-x space-count)))
+            (puthash :parenTrailEndX new-pt-end-x result))))))
   nil)
 
 (defun parinferlib--append-paren-trail (result)
