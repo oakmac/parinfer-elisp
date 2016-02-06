@@ -17,7 +17,6 @@
 (println "Running Parinfer Tests")
 (squiggly-line)
 
-
 (defconst in-text-1 "(defn foo\n  [arg\n  ret")
 (defconst out-text-1 "(defn foo\n  [arg]\n  ret)")
 

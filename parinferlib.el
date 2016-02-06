@@ -57,6 +57,9 @@
 (defun parinferlib--empty? (stack)
   (parinferlib--zero? (lenth stack)))
 
+(defun parinferlib--not-empty? (stack)
+  (not (parinferlib--empty? stack)))
+
 (defun parinferlib--open-paren? (ch)
   (or (string= "(" ch)
       (string= "{" ch)
@@ -309,13 +312,141 @@
 ;; Cursor functions
 ;;------------------------------------------------------------------------------
 
-;; TODO: write this section
+(defun parinferlib--cursor-on-left? (result)
+  (let* ((line-no (gethash :lineNo result))
+         (cursor-line (gethash :cursorLine result))
+         (cursor-x (gethash :cursorX result))
+         (result-x (gethash :x result)))
+    (and (equal line-no cursor-line)
+         cursor-x
+         (<= cursor-x result-x))))
+
+(defun parinferlib--cursor-on-right? (result x)
+  (let* ((line-no (gethash :lineNo result))
+         (cursor-line (gethash :cursorLine result))
+         (cursor-x (gethash :cursorX result)))
+    (and (equal line-no cursor-line)
+         cursor-x
+         x
+         (> cursor-x x))))
+
+(defun parinferlib--cursor-in-comment? (result)
+  (parinferlib--cursor-on-right? result (gethash :commentX result)))
+
+(defun parinferlib--handle-cursor-delta (result)
+  ;; TODO: write me
+  nil)
 
 ;;------------------------------------------------------------------------------
 ;; Paren Trail functions
 ;;------------------------------------------------------------------------------
 
-;; TODO: write this section
+(defun parinferlib--update-paren-trail-bounds (result)
+  (let* ((lines (gethash :lines result))
+         (line-no (gethash :lineNo result))
+         (line (aref lines line-no))
+         (x (gethash :x result))
+         (prev-ch (if (> x 0)
+                    (aref line (1- x))
+                    nil))
+         (ch (gethash :ch result))
+         (should-reset? (and (gethash :isInCode result)
+                             (not (parinferlib--close-paren? ch))
+                             (not (string= ch ""))
+                             (or (not (string= ch BLANK_SPACE))
+                                 (string= prev-ch BACKSLASH))
+                             (not (string= ch DOUBLE_SPACE)))))
+    (when should-reset?
+      (puthash :parenTrailLineNo line-no result)
+      (puthash :parenTrailStartX (1+ x) result)
+      (puthash :parenTrailEndX (1+ x) result)
+      (puthash :parenTrailOpeners '() result)
+      (puthash :maxIndent nil result)))
+  nil)
+
+(defun parinferlib--clamp-paren-trail-to-cursor (result)
+  (let* ((start-x (gethash :parenTrailStartX result))
+         (end-x (gethash :parenTrailEndX result))
+         (cursor-clamping? (and (parinferlib--cursor-on-right? result start-x)
+                                (not (parinferlib--cursor-in-comment? result)))))
+    (when cursor-clamping?
+      (let* ((cursor-x (gethash :cursorX result))
+             (new-start-x (max start-x cursor-x))
+             (new-end-x (max end-x cursor-x))
+             (line-no (gethash :lineNo result))
+             (lines (gethash :lines result))
+             (line (aref lines line-no))
+             (remove-count 0)
+             (i start-x))
+        (while (< i new-start-x)
+          (when (parinferlib--close-paren? (aref line i))
+            (setq remove-count (1+ remove-count)))
+          (setq i (1+ i)))
+        () ;; TODO: figure out splice
+        (puthash :parenTrailStartX new-start-x result)
+        (puthash :parenTrailEndX new-end-x result))))
+  nil)
+
+(defun parinferlib--remove-paren-trail (result)
+  (let ((start-x (gethash :parenTrailStartX result))
+        (end-x (gethash :parenTrailEndX result)))
+    (when (not (equal start-x end-x))
+      (let ((openers (gethash :parenTrailOpeners result))
+            (paren-stack (gethash :parenStack result)))
+
+        ;;(print (gethash :parenTrailOpeners result))
+        ;;(print (gethash :parenStack result))
+        ;;(print "------------------")
+
+        (while (parinferlib--not-empty? openers)
+          (setq paren-stack (cons (pop openers) paren-stack)))
+        (puthash :parenTrailOpeners openers result)
+        (puthash :parenStack paren-stack result)
+
+        ;;(print (gethash :parenTrailOpeners result))
+        ;;(print (gethash :parenStack result))
+        ;;(print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
+        (parinferlib--remove-within-line result (gethash :lineNo result) start-x end-x))))
+  nil)
+
+(defun parinferlib--correct-paren-trail (result)
+  (let ((parens "")
+        (paren-stack (gethash :parenStack result))
+        (break? nil))
+    (while (> (length paren-stack) 0)
+      ())) ;; TODO: finish this
+  nil)
+
+(defun parinferlib--clean-paren-trail (result)
+  ;; TODO: write me
+  nil)
+
+(defun parinferlib--append-paren-trail (result)
+  (let* ((paren-stack (gethash :parenStack result))
+         (opener (pop paren-stack))
+         (opener-ch (aref opener CH_IDX))
+         (opener-x (aref opener X_IDX))
+         (close-ch (gethash opener-ch PARENS))
+         (paren-trail-line-no (gethash :parenTrailLineNo result))
+         (end-x (gethash :parenTrailEndX result)))
+    (puthash :parenStack paren-stack result)
+    (puthash :maxIndent opener-x result)
+    (parinferlib--insert-within-line result paren-trail-line-no end-x close-ch)
+    (puthash :parenTrailEndX (1+ end-x) result))
+  nil)
+
+(defun parinferlib--finish-new-paren-trail (result)
+  (let* ((mode (gethash :mode result))
+         (line-no (gethash :lineNo result))
+         (cursor-line (gethash :cursorLine result)))
+    (when (equal mode :indent)
+      (parinferlib--clamp-paren-trail-to-cursor result)
+      (parinferlib--remove-paren-trail result))
+    (when (and (equal mode :paren)
+               (not (equal line-no cursor-line)))
+      (parinferlib--clean-paren-trail result)))
+  nil)
 
 ;;------------------------------------------------------------------------------
 ;; Indentation functions
@@ -333,11 +464,29 @@
 (defun parinferlib--process-line (result line)
   nil)
 
+(defun parinferlib--finalize-result (result err)
+  ;; TODO: figure out throw here
+  (puthash :success t result)
+  nil)
+
 (defun parinferlib--process-error (result err)
   nil)
 
-(defun parinferlib--process-text (text options mode)
-  nil)
+(defun parinferlib--process-text (text mode cursor-x cursor-line cursor-dx)
+  (let* ((result (parinferlib--create-initial-result text mode cursor-x cursor-line cursor-dx))
+         (orig-lines (gethash :origLines result))
+         (lines-length (length orig-lines))
+         (i 0))
+    ;; TODO: figure out try / catch
+    (while (< i lines-length)
+      (parinferlib--process-line result (aref orig-lines i))
+      (setq i (+1 i)))
+    (parinferlib--finalize-result result)
+    result))
+
+(defun parinferlib--public-result (result)
+  ;; TODO: write this
+  result)
 
 ;;------------------------------------------------------------------------------
 ;; Public API
@@ -345,16 +494,13 @@
 
 (defun parinferlib-indent-mode (text cursor-x cursor-line cursor-dx)
   "Indent Mode public function."
-  (let ((result (parinferlib--create-initial-result text :indent cursor-x cursor-line cursor-dx)))
-    (parinferlib--on-open-paren result)
-    (parinferlib--on-open-paren result)
-    (parinferlib--on-open-paren result)
-    (parinferlib--on-open-paren result)
-    result))
+  (let ((result (parinferlib--process-text text :indent cursor-x cursor-line cursor-dx)))
+    (parinferlib--public-result result)))
 
 (defun parinferlib-paren-mode (text cursor-x cursor-line cursor-dx)
   "Paren Mode public function"
-  (parinferlib--create-initial-result text :paren cursor-x cursor-line cursor-dx))
+  (let ((result (parinferlib--process-text text :paren cursor-x cursor-line cursor-dx)))
+    (parinferlib--public-result result)))
 
 (provide 'parinferlib)
 
