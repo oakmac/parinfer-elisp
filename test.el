@@ -64,33 +64,25 @@
          (result-1 (if (equal :indent mode)
                      (parinferlib-indent-mode in-text cursor-x cursor-line cursor-dx)
                      (parinferlib-paren-mode in-text cursor-x cursor-line cursor-dx)))
-         (out-text-1 (nth 1 result-1))
+         (out-text-1 (plist-get result-1 :text))
 
          (result-2 (if (equal :indent mode)
                      (parinferlib-indent-mode out-text-1 cursor-x cursor-line cursor-dx)
                      (parinferlib-paren-mode out-text-1 cursor-x cursor-line cursor-dx)))
-         (out-text-2 (nth 1 result-2)))
+         (out-text-2 (plist-get result-2 :text)))
     ;; in/out text equality
     (when (not (equal out-text-1 expected-text))
       ;; TODO: figure out how to print to stderr
-      (print (concat mode-string " In/Out text failure: test id " test-id)))))
+      (print (concat mode-string " In/Out text failure: test id " test-id)))
 
     ;; idempotence
-    ; (when (not (equal out-text-2 expected-text))
-    ;  (print (concat mode-string " Idempotence failure: test id " test-id)))))
+    (when (not (equal out-text-2 expected-text))
+      (print (concat mode-string " Idempotence failure: test id " test-id)))))
 
     ;; cross-mode preservation
     ;; TODO: write this
 
 (mapc (lambda (test) (run-test :indent test)) indent-mode-tests)
 (mapc (lambda (test) (run-test :paren test)) paren-mode-tests)
-
-
-; (defconst in-text-1 "(defn foo\n  [arg\n  ret")
-; (defconst out-text-1 "(defn foo\n  [arg]\n  ret)")
-; (defconst paren-test-1 "(let [foo 1]\nfoo)")
-; (print (parinferlib-paren-mode paren-test-1 nil nil nil))
-; (print (parinferlib-indent-mode in-text-1 nil nil nil))
-; (parinferlib-indent-mode in-text-1 nil nil nil)
 
 (princ "\n\n")
