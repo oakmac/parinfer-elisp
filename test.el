@@ -4,6 +4,8 @@
 
 (load-file "parinferlib.el")
 
+(setq debug-on-error t)
+
 (defun println (txt)
   (princ (concat txt "\n")))
 

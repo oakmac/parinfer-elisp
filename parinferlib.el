@@ -13,6 +13,18 @@
 ;; http://www.gnu.org/software/emacs/manual/html_node/elisp/Library-Headers.html
 ;; http://www.gnu.org/software/emacs/manual/html_node/elisp/Packaging-Basics.html
 
+;; TODO: write about the differences between this implementation and parinfer.js
+;; - using vectors for lines
+;; - using lists for stacks
+;; - using vector for stack elements
+
+;; A Stack Element is a Vector of 4 items (alphabetically ordered)
+;; idx : item
+;;   0 : ch
+;;   1 : indentDelta
+;;   2 : lineNo
+;;   3 : x
+
 ;;------------------------------------------------------------------------------
 ;; Constants / Predicates
 ;;------------------------------------------------------------------------------
@@ -25,6 +37,25 @@
 (defconst NEWLINE "\n")
 (defconst SEMICOLON ";")
 (defconst TAB "\t")
+
+(defconst CH_IDX 0)
+(defconst INDENT_DELTA_IDX 1)
+(defconst LINE_NO_IDX 2)
+(defconst X_IDX 3)
+
+(defconst PARENS (make-hash-table :test 'equal))
+(puthash "{" "}" PARENS)
+(puthash "}" "{" PARENS)
+(puthash "[" "]" PARENS)
+(puthash "]" "[" PARENS)
+(puthash "(" ")" PARENS)
+(puthash ")" "(" PARENS)
+
+(defun parinferlib--zero? (x)
+  (eq 0 x))
+
+(defun parinferlib--empty? (stack)
+  (parinferlib--zero? (lenth stack)))
 
 (defun parinferlib--open-paren? (ch)
   (or (string= "(" ch)
@@ -41,13 +72,14 @@
 ;;------------------------------------------------------------------------------
 
 (defun parinferlib--create-initial-result (text mode cursor-x cursor-line cursor-dx)
-  (let ((result (make-hash-table)))
+  (let ((lines-vector (vconcat (split-string text NEWLINE)))
+        (result (make-hash-table)))
     (puthash :mode mode result)
 
     (puthash :origText text result)
-    (puthash :origLines (vconcat (split-string text NEWLINE)) result)
+    (puthash :origLines lines-vector result)
 
-    (puthash :lines [] result)
+    (puthash :lines (make-vector (length lines-vector) nil) result)
     (puthash :lineNo -1 result)
     (puthash :ch "" result)
     (puthash :x 0 result)
@@ -115,49 +147,96 @@
 ;;------------------------------------------------------------------------------
 
 (defun parinferlib--insert-within-line (result lineNo idx insert)
-  (let (lines (gethash :lines result)
-        line (aref lines lineNo)
-        new-line (parinferlib--insert-within-string line idx insert)
-        new-lines (aset lines lineNo new-line))
-    (puthash :lines new-lines result)))
+  (let* ((lines (gethash :lines result))
+         (line (aref lines lineNo))
+         (new-line (parinferlib--insert-within-string line idx insert))
+         (new-lines (aset lines lineNo new-line)))
+    (puthash :lines new-lines result)
+    nil))
 
 (defun parinferlib--replace-within-line (result lineNo start end replace)
-  (let (lines (gethash :lines result)
-        line (aref lines lineNo)
-        new-line (parinferlib--replace-within-string line start end replace)
-        new-lines (aset lines lineNo new-line))
-    (puthash :lines new-lines result)))
+  (let* ((lines (gethash :lines result))
+         (line (aref lines lineNo))
+         (new-line (parinferlib--replace-within-string line start end replace))
+         (new-lines (aset lines lineNo new-line)))
+    (puthash :lines new-lines result)
+    nil))
 
 (defun parinferlib--remove-within-line (result lineNo start end)
-  (let (lines (gethash :lines result)
-        line (aref lines lineNo)
-        new-line (parinferlib--remove-within-string line start end)
-        new-lines (aset lines lineNo new-line))
-    (puthash :lines new-lines result)))
+  (let* ((lines (gethash :lines result))
+         (line (aref lines lineNo))
+         (new-line (parinferlib--remove-within-string line start end))
+         (new-lines (aset lines lineNo new-line)))
+    (puthash :lines new-lines result)
+    nil))
 
 (defun parinferlib--init-line (result line)
-  (let (current-line-no (gethash :lineNo result)
-        lines (gethash :lines result)
-        new-lines (vconcat lines [line]))
+  (let* ((current-line-no (gethash :lineNo result))
+         (new-line-no (1+ current-line-no))
+         (lines (gethash :lines result))
+         (new-lines (aset lines new-line-no line)))
     (puthash :x 0 result)
-    (puthash :lineNo (1+ current-line-no) result)
+    (puthash :lineNo new-line-no result)
     (puthash :lines new-lines result)
 
     ;; reset line-specific state
     (puthash :commentX nil result)
-    (puthash :indentDelta 0 result)))
+    (puthash :indentDelta 0 result)
+    nil))
+
+;; if the current character has changed, commit it's change to the current line
+(defun parinferlib--commit-char (result orig-ch)
+  (let* ((line-no (gethash :lineNo result))
+         (x (gethash :x result))
+         (ch (gethash :ch result))
+         (ch-length (length ch))
+         (orig-ch-length (length orig-ch)))
+    (when (not (string= orig-ch ch))
+      (parinferlib--replace-within-line result line-no x (+ x orig-ch-length) ch))
+    (puthash :x (+ x ch-length) result)
+    nil))
 
 ;;------------------------------------------------------------------------------
 ;; Util
 ;;------------------------------------------------------------------------------
 
-;; TODO: write this section
+(defun parinferlib--clamp (val min-n max-n)
+  (when min-n
+    (setq val (if (> min-n val) min-n val)))
+  (when max-n
+    (setq val (if (< max-n val) max-n val)))
+  val)
+
+;; TODO: figure out what data structure to use for the stack
+;;       probably a list?
+(defun parinferlib--peek (a)
+  nil)
 
 ;;------------------------------------------------------------------------------
 ;; Character functions
 ;;------------------------------------------------------------------------------
 
-;; TODO: write this section
+(defun parinferlib--valid-close-paren? (paren-stack ch)
+  (if (parinferlib--empty? paren-stack)
+    nil
+    (let* ((top-of-stack (car paren-stack))
+           (top-of-stack-ch (aref top-of-stack CH_IDX)))
+      (string= top-of-stack-ch (gethash ch PARENS)))))
+
+(defun parinferlib--on-open-paren (result)
+  (when (gethash :isInCode result)
+    (let* ((new-stack-el (vector (gethash :ch result)
+                                 (gethash :indentDelta result)
+                                 (gethash :lineNo result)
+                                 (gethash :x result)))
+           (paren-stack (gethash :parenStack result))
+           (new-paren-stack (cons new-stack-el paren-stack)))
+      (puthash :parenStack new-paren-stack result)
+      nil)))
+
+(defun parinferlib--on-matched-close-paren (result)
+  ;; TODO: write me
+  nil)
 
 ;;------------------------------------------------------------------------------
 ;; Cursor functions
@@ -199,7 +278,12 @@
 
 (defun parinferlib-indent-mode (text cursor-x cursor-line cursor-dx)
   "Indent Mode public function."
-  (parinferlib--create-initial-result text :indent cursor-x cursor-line cursor-dx))
+  (let ((result (parinferlib--create-initial-result text :indent cursor-x cursor-line cursor-dx)))
+    (parinferlib--on-open-paren result)
+    (parinferlib--on-open-paren result)
+    (parinferlib--on-open-paren result)
+    (parinferlib--on-open-paren result)
+    result))
 
 (defun parinferlib-paren-mode (text cursor-x cursor-line cursor-dx)
   "Paren Mode public function"
