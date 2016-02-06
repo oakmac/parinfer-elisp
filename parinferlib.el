@@ -453,7 +453,10 @@
           (when (parinferlib--close-paren? (string (aref line i)))
             (setq remove-count (1+ remove-count)))
           (setq i (1+ i)))
-        () ;; TODO: figure out splice
+        (when (> remove-count 0)
+          (let* ((openers (gethash :parenTrailOpeners result))
+                 (new-openers (nbutlast openers remove-count)))
+            (puthash :parenTrailOpeners new-openers result)))
         (puthash :parenTrailStartX new-start-x result)
         (puthash :parenTrailEndX new-end-x result))))
   nil)
@@ -732,7 +735,7 @@
            (result-text (mapconcat 'identity lines NEWLINE)))
       (list t result-text))
     (let ((orig-text (gethash :origText result))
-          (public-error "TODO: create error alist here"))
+          (public-error "TODO: create error plist here"))
       (list nil orig-text public-error))))
 
 ;;------------------------------------------------------------------------------
