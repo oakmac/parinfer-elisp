@@ -1,13 +1,13 @@
 ;;; parinferlib.el --- a Parinfer implementation in Emacs Lisp
 ;; v0.1.0
-;; https://github.com/oakmac/parinferlib-emacs
+;; https://github.com/oakmac/parinfer-elisp
 ;;
 ;; More information about Parinfer can be found here:
 ;; http://shaunlebron.github.io/parinfer/
 ;;
 ;; Copyright (c) 2016, Chris Oakman
 ;; Released under the ISC license
-;; https://github.com/oakmac/parinferlib-emacs/blob/master/LICENSE.md
+;; https://github.com/oakmac/parinfer-elisp/blob/master/LICENSE.md
 
 ;;------------------------------------------------------------------------------
 ;; Constants / Predicates
