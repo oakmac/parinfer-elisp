@@ -117,3 +117,6 @@
                    (number-to-string num-tests-failed) " failures.")))
 (squiggly-line)
 (princ "\n\n")
+
+(when (not (equal num-tests-failed 0))
+  (kill-emacs 1))
