@@ -3,7 +3,7 @@
     "in": {
       "fileLineNo": 6,
       "lines": [
-        "(defn fooZZZ",
+        "(defn foo",
         "  [arg",
         "  ret"
       ],
