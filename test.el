@@ -1,4 +1,11 @@
-;; TODO: document this file
+;; This file is part of the parinfer-elisp project:
+;; https://github.com/oakmac/parinfer-elisp
+;;
+;; You can run this file on the command line:
+;; emacs --script test.el
+;;
+;; It will run the Parinfer test suite and output the results to the console.
+;; The script will exit with "1" on any test failure. Exit "0" otherwise.
 
 (require 'json)
 (load-file "parinferlib.el")
@@ -118,5 +125,7 @@
 (squiggly-line)
 (princ "\n\n")
 
+;; exit with "1" on failure
+;; NOTE: this is necessary for travis-ci
 (when (not (equal num-tests-failed 0))
   (kill-emacs 1))
