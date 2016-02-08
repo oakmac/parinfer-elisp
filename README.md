@@ -52,6 +52,12 @@ Please see the [test.el] file for usage examples.
 emacs --script test.el
 ```
 
+To test performance:
+
+```sh
+emacs --script perf.el
+```
+
 ## License
 
 [ISC License]
