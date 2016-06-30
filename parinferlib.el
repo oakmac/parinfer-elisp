@@ -104,7 +104,6 @@
     (puthash :parenTrailEndX parinferlib--SENTINEL_NULL result)
     (puthash :parenTrailOpeners '() result)
 
-    ;; we avoid having nils where should be numeric values
     (puthash :cursorX (or cursor-x parinferlib--SENTINEL_NULL) result)
     (puthash :cursorLine (or cursor-line parinferlib--SENTINEL_NULL) result)
     (puthash :cursorDx (or cursor-dx parinferlib--SENTINEL_NULL) result)
@@ -156,10 +155,11 @@
   (let* ((error-cache (gethash :errorPosCache result))
          (error-msg (gethash error-name parinferlib--ERR_MESSAGES))
          (error-pos (plist-get error-cache error-name)))
-    (when (and (= line-no parinferlib--SENTINEL_NULL) error-pos)
-      (setq line-no (aref error-pos 0)))
-    (when (and (= x parinferlib--SENTINEL_NULL) error-pos)
-      (setq x (aref error-pos 1)))
+    (when error-pos
+      (when (/= line-no parinferlib--SENTINEL_NULL)
+        (setq line-no (aref error-pos 0)))
+      (when (/= x parinferlib--SENTINEL_NULL)
+        (setq x (aref error-pos 1))))
     ;; return a plist of the error
     (list :name error-name
           :message error-msg
@@ -557,7 +557,7 @@
         (puthash :x new-indent result)
         (puthash :indentDelta new-indent-delta result)))))
 
-(defun parinferlib--try-preview-cursor-scope (result)
+(defun parinferlib--try-preview-cursor-change (result)
   (when (gethash :canPreviewCursorChange result)
     (let ((cursor-x (gethash :cursorX result))
           (cursor-line (gethash :cursorLine result))
@@ -574,7 +574,7 @@
   (let ((mode (gethash :mode result))
         (x (gethash :x result)))
     (when (equal mode :indent)
-      (parinferlib--try-preview-cursor-scope result)
+      (parinferlib--try-preview-cursor-change result)
       (parinferlib--correct-paren-trail result x))
     (when (equal mode :paren)
       (parinferlib--correct-indent result))))
@@ -582,16 +582,14 @@
 (defun parinferlib--on-leading-close-paren (result)
   (puthash :skipChar t result)
   (puthash :trackingIndent t result)
-  (let ((mode (gethash :mode result)))
-    (case mode
-      ((:paren)
-       (let* ((paren-stack (gethash :parenStack result))
-              (ch (gethash :ch result)))
-         (when (parinferlib--valid-close-paren? paren-stack ch)
-           (if (parinferlib--cursor-on-left? result)
-               (progn (puthash :skipChar nil result)
-                      (parinferlib--on-indent result))
-             (parinferlib--append-paren-trail result))))))))
+  (when (equal :paren (gethash :mode result))
+    (let* ((paren-stack (gethash :parenStack result))
+           (ch (gethash :ch result)))
+      (when (parinferlib--valid-close-paren? paren-stack ch)
+        (if (parinferlib--cursor-on-left? result)
+          (progn (puthash :skipChar nil result)
+                 (parinferlib--on-indent result))
+          (parinferlib--append-paren-trail result))))))
 
 (defun parinferlib--check-indent (result)
   (let ((ch (gethash :ch result))
@@ -630,10 +628,14 @@
   (let ((mode (gethash :mode result))
         (in-str? (gethash :isInStr result)))
     (case mode
-     ((:indent)
-      (parinferlib--init-preview-cursor-scope result))
-     ((:paren)
-      (puthash :trackingIndent (not in-str?) result)))))
+      ((:indent)
+       ;; length of list > 0 means the same as the list not being null
+       (puthash :trackingIndent (and (gethash :parenStack result)
+                                     (not in-str?))
+                result)
+       (parinferlib--init-preview-cursor-scope result))
+      ((:paren)
+       (puthash :trackingIndent (not in-str?) result)))))
 
 (defun parinferlib--set-tab-stops (result)
   (let ((cursor-line (gethash :cursorLine result))
