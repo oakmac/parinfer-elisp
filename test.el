@@ -74,8 +74,8 @@
          (out-text-1 (plist-get result-1 :text))
 
          (result-2 (if (equal :indent mode)
-                     (parinferlib-indent-mode out-text-1 cursor-x cursor-line cursor-dx)
-                     (parinferlib-paren-mode out-text-1 cursor-x cursor-line cursor-dx)))
+                     (parinferlib-indent-mode out-text-1 cursor-x cursor-line nil preview-cursor-scope)
+                     (parinferlib-paren-mode out-text-1 cursor-x cursor-line nil preview-cursor-scope)))
          (out-text-2 (plist-get result-2 :text))
          (failed? nil))
     ;; in/out text equality
