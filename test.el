@@ -67,10 +67,10 @@
          (cursor-x (plist-get cursor :cursorX))
          (cursor-line (plist-get cursor :cursorLine))
          (cursor-dx (plist-get cursor :cursorDx))
-
+         (preview-cursor-scope (plist-get cursor :previewCursorScope))
          (result-1 (if (equal :indent mode)
-                     (parinferlib-indent-mode in-text cursor-x cursor-line cursor-dx)
-                     (parinferlib-paren-mode in-text cursor-x cursor-line cursor-dx)))
+                     (parinferlib-indent-mode in-text cursor-x cursor-line cursor-dx preview-cursor-scope)
+                     (parinferlib-paren-mode in-text cursor-x cursor-line cursor-dx preview-cursor-scope)))
          (out-text-1 (plist-get result-1 :text))
 
          (result-2 (if (equal :indent mode)
