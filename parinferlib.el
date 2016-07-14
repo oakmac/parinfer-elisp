@@ -49,7 +49,7 @@
 (defconst parinferlib--SENTINEL_NULL -999)
 
 ;; determines if a line only contains a Paren Trail (possibly w/ a comment)
-(defconst parinferlib--STANDALONE_PAREN_TRAIL "^[[:space:]\\])}]*\(;.*\)?")
+(defconst parinferlib--STANDALONE_PAREN_TRAIL "^[][:space:])}]*\\(;.*\\)?$")
 
 (defconst parinferlib--PARENS (make-hash-table :test 'equal))
 (puthash "{" "}" parinferlib--PARENS)
@@ -82,7 +82,7 @@
 ;; Result Structure
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--create-initial-result (text mode cursor-x cursor-line cursor-dx)
+(defun parinferlib--create-initial-result (text mode cursor-x cursor-line cursor-dx preview-cursor-scope)
   (let ((lines-vector (vconcat (split-string text parinferlib--LINE_ENDING_REGEX)))
         (result (make-hash-table)))
     (puthash :mode mode result)
@@ -107,7 +107,7 @@
     (puthash :cursorX (or cursor-x parinferlib--SENTINEL_NULL) result)
     (puthash :cursorLine (or cursor-line parinferlib--SENTINEL_NULL) result)
     (puthash :cursorDx (or cursor-dx parinferlib--SENTINEL_NULL) result)
-    (puthash :previewCursorScope nil result)
+    (puthash :previewCursorScope preview-cursor-scope result)
     (puthash :canPreviewCursorScope nil result)
 
     (puthash :isInCode t result)
@@ -557,8 +557,8 @@
         (puthash :x new-indent result)
         (puthash :indentDelta new-indent-delta result)))))
 
-(defun parinferlib--try-preview-cursor-change (result)
-  (when (gethash :canPreviewCursorChange result)
+(defun parinferlib--try-preview-cursor-scope (result)
+  (when (gethash :canPreviewCursorScope result)
     (let ((cursor-x (gethash :cursorX result))
           (cursor-line (gethash :cursorLine result))
           (result-x (gethash :x result)))
@@ -574,7 +574,7 @@
   (let ((mode (gethash :mode result))
         (x (gethash :x result)))
     (when (equal mode :indent)
-      (parinferlib--try-preview-cursor-change result)
+      (parinferlib--try-preview-cursor-scope result)
       (parinferlib--correct-paren-trail result x))
     (when (equal mode :paren)
       (parinferlib--correct-indent result))))
@@ -715,8 +715,8 @@
   (puthash :success nil result)
   (puthash :error err result))
 
-(defun parinferlib--process-text (text mode cursor-x cursor-line cursor-dx)
-  (let* ((result (parinferlib--create-initial-result text mode cursor-x cursor-line cursor-dx))
+(defun parinferlib--process-text (text mode cursor-x cursor-line cursor-dx preview-cursor-scope)
+  (let* ((result (parinferlib--create-initial-result text mode cursor-x cursor-line cursor-dx preview-cursor-scope))
          (orig-lines (gethash :origLines result))
          (lines-length (length orig-lines))
          (i 0)
@@ -765,14 +765,14 @@
 ;; Public API
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib-indent-mode (text cursor-x cursor-line cursor-dx)
+(defun parinferlib-indent-mode (text cursor-x cursor-line cursor-dx &optional preview-cursor-scope)
   "Indent Mode public function."
-  (let ((result (parinferlib--process-text text :indent cursor-x cursor-line cursor-dx)))
+  (let ((result (parinferlib--process-text text :indent cursor-x cursor-line cursor-dx preview-cursor-scope)))
     (parinferlib--public-result result)))
 
-(defun parinferlib-paren-mode (text cursor-x cursor-line cursor-dx)
+(defun parinferlib-paren-mode (text cursor-x cursor-line cursor-dx &optional preview-cursor-scope)
   "Paren Mode public function"
-  (let ((result (parinferlib--process-text text :paren cursor-x cursor-line cursor-dx)))
+  (let ((result (parinferlib--process-text text :paren cursor-x cursor-line cursor-dx preview-cursor-scope)))
     (parinferlib--public-result result)))
 
 (defun parinferlib-version ()
