@@ -32,7 +32,7 @@ It exposes two public functions:
 `txt` should be a string of the text you want to process, and the `cursor-`
 arguments should be `nil` or an integer.
 
-The return value is a [Property List] (plist) with keys:
+The return value is a [Property List][1] (plist) with keys:
 
 * `:success` - `t` or `nil`, indicating if the input was properly formatted
   enough to create a valid result
@@ -68,6 +68,6 @@ emacs --script perf.el
 [tests]:tests/
 [main Parinfer repo]:https://github.com/shaunlebron/parinfer/tree/master/lib/test/cases
 [parinfer.js API]:https://github.com/shaunlebron/parinfer/tree/master/lib#api
-[Property List]:http://www.gnu.org/software/emacs/manual/html_node/elisp/Property-Lists.html
+[1]:http://www.gnu.org/software/emacs/manual/html_node/elisp/Property-Lists.html
 [test.el]:test.el
 [ISC License]:LICENSE.md
