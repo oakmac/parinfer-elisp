@@ -60,6 +60,7 @@
   (let* ((mode-string (if (equal :indent mode) "Indent Mode" "Paren Mode"))
          (in (plist-get test :in))
          (out (plist-get test :out))
+         (error-expected? (plist-get out :error))
          (test-id (number-to-string (plist-get in :fileLineNo)))
          (in-text (string-join (plist-get in :lines)))
          (expected-text (string-join (plist-get out :lines)))
@@ -91,7 +92,8 @@
     ;; cross-mode preservation
     (when (and (not cursor-x)
                (not cursor-line)
-               (not cursor-dx))
+               (not cursor-dx)
+               (not error-expected?))
       (let* ((result-3 (if (equal :indent mode)
                          (parinferlib-paren-mode out-text-1 nil nil nil)
                          (parinferlib-indent-mode out-text-1 nil nil nil)))

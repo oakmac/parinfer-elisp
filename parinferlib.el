@@ -627,15 +627,14 @@
 (defun parinferlib--init-indent (result)
   (let ((mode (gethash :mode result))
         (in-str? (gethash :isInStr result)))
-    (case mode
-      ((:indent)
-       ;; length of list > 0 means the same as the list not being null
-       (puthash :trackingIndent (and (gethash :parenStack result)
-                                     (not in-str?))
-                result)
-       (parinferlib--init-preview-cursor-scope result))
-      ((:paren)
-       (puthash :trackingIndent (not in-str?) result)))))
+    (when (equal :indent mode)
+      ;; length of list > 0 means the same as the list not being null
+      (puthash :trackingIndent (and (gethash :parenStack result)
+                                    (not in-str?))
+               result)
+      (parinferlib--init-preview-cursor-scope result))
+    (when (equal :paren mode)
+       (puthash :trackingIndent (not in-str?) result))))
 
 (defun parinferlib--set-tab-stops (result)
   (let ((cursor-line (gethash :cursorLine result))
