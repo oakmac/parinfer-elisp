@@ -60,6 +60,7 @@
   (let* ((mode-string (if (equal :indent mode) "Indent Mode" "Paren Mode"))
          (in (plist-get test :in))
          (out (plist-get test :out))
+         (error-expected? (plist-get out :error))
          (test-id (number-to-string (plist-get in :fileLineNo)))
          (in-text (string-join (plist-get in :lines)))
          (expected-text (string-join (plist-get out :lines)))
@@ -67,15 +68,15 @@
          (cursor-x (plist-get cursor :cursorX))
          (cursor-line (plist-get cursor :cursorLine))
          (cursor-dx (plist-get cursor :cursorDx))
-
+         (preview-cursor-scope (plist-get cursor :previewCursorScope))
          (result-1 (if (equal :indent mode)
-                     (parinferlib-indent-mode in-text cursor-x cursor-line cursor-dx)
-                     (parinferlib-paren-mode in-text cursor-x cursor-line cursor-dx)))
+                     (parinferlib-indent-mode in-text cursor-x cursor-line cursor-dx preview-cursor-scope)
+                     (parinferlib-paren-mode in-text cursor-x cursor-line cursor-dx preview-cursor-scope)))
          (out-text-1 (plist-get result-1 :text))
 
          (result-2 (if (equal :indent mode)
-                     (parinferlib-indent-mode out-text-1 cursor-x cursor-line cursor-dx)
-                     (parinferlib-paren-mode out-text-1 cursor-x cursor-line cursor-dx)))
+                     (parinferlib-indent-mode out-text-1 cursor-x cursor-line nil preview-cursor-scope)
+                     (parinferlib-paren-mode out-text-1 cursor-x cursor-line nil preview-cursor-scope)))
          (out-text-2 (plist-get result-2 :text))
          (failed? nil))
     ;; in/out text equality
@@ -91,7 +92,8 @@
     ;; cross-mode preservation
     (when (and (not cursor-x)
                (not cursor-line)
-               (not cursor-dx))
+               (not cursor-dx)
+               (not error-expected?))
       (let* ((result-3 (if (equal :indent mode)
                          (parinferlib-paren-mode out-text-1 nil nil nil)
                          (parinferlib-indent-mode out-text-1 nil nil nil)))
