@@ -189,12 +189,6 @@
         (= cursor-x 0)
       (>= cursor-x end))))
 
-(defun parinferlib--insert-within-line (result line-no idx insert)
-  (let* ((lines (gethash :lines result))
-         (line (aref lines line-no))
-         (new-line (parinferlib--insert-within-string line idx insert)))
-    (aset lines line-no new-line)))
-
 (defun parinferlib--shift-cursor-on-edit (result line-no start end replace)
   (let* ((old-length (- end start))
          (new-length (length replace))
@@ -213,12 +207,6 @@
          (new-line (parinferlib--replace-within-string line start end replace)))
     (aset lines line-no new-line)
     (parinferlib--shift-cursor-on-edit result line-no start end replace)))
-
-(defun parinferlib--remove-within-line (result line-no start end)
-  (let* ((lines (gethash :lines result))
-         (line (aref lines line-no))
-         (new-line (parinferlib--remove-within-string line start end)))
-    (aset lines line-no new-line)))
 
 (defun parinferlib--insert-within-line (result line-no idx insert)
   (parinferlib--replace-within-line result line-no idx idx insert))
@@ -520,16 +508,30 @@
     (parinferlib--insert-within-line result paren-trail-line-no end-x close-ch)
     (puthash :parenTrailEndX (1+ end-x) result)))
 
+(defun parinferlib--invalidate-paren-trail (result)
+  (puthash :parenTrailLineNo parinferlib--SENTINEL_NULL result)
+  (puthash :parenTrailStartX parinferlib--SENTINEL_NULL result)
+  (puthash :parenTrailEndX parinferlib--SENTINEL_NULL result)
+  (puthash :parenTrailOpeners '() result))
+
 (defun parinferlib--finish-new-paren-trail (result)
-  (let* ((mode (gethash :mode result))
+  (let* ((in-str? (gethash :isInStr result))
+         (mode (gethash :mode result))
          (line-no (gethash :lineNo result))
          (cursor-line (gethash :cursorLine result)))
-    (when (equal mode :indent)
-      (parinferlib--clamp-paren-trail-to-cursor result)
-      (parinferlib--pop-paren-trail result))
-    (when (and (equal mode :paren)
-               (not (equal line-no cursor-line)))
-      (parinferlib--clean-paren-trail result))))
+    (cond
+      (in-str?
+       (parinferlib--invalidate-paren-trail result))
+
+      ((equal mode :indent)
+       (progn
+         (parinferlib--clamp-paren-trail-to-cursor result)
+         (parinferlib--pop-paren-trail result)))
+
+
+      ((and (equal mode :paren)
+            (not (equal line-no cursor-line)))
+       (parinferlib--clean-paren-trail result)))))
 
 ;;------------------------------------------------------------------------------
 ;; Indentation functions
@@ -773,9 +775,6 @@
   "Paren Mode public function"
   (let ((result (parinferlib--process-text text :paren cursor-x cursor-line cursor-dx preview-cursor-scope)))
     (parinferlib--public-result result)))
-
-(defun parinferlib-version ()
-  "1.8.0")
 
 (provide 'parinferlib)
 
