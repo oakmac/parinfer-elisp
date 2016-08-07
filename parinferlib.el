@@ -1,5 +1,5 @@
 ;;; parinferlib.el --- a Parinfer implementation in Emacs Lisp
-;; v0.2.0
+;; v1.0.0+DEV
 ;; https://github.com/oakmac/parinfer-elisp
 ;;
 ;; More information about Parinfer can be found here:
@@ -77,7 +77,7 @@
 ;; Result Structure
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--create-initial-result (text mode cursor-x cursor-line cursor-dx preview-cursor-scope)
+(defun parinferlib--create-initial-result (text mode options)
   (let ((lines-vector (vconcat (split-string text parinferlib--LINE_ENDING_REGEX)))
         (result (make-hash-table)))
     (puthash :mode mode result)
@@ -99,10 +99,10 @@
     (puthash :parenTrailEndX nil result)
     (puthash :parenTrailOpeners '() result)
 
-    (puthash :cursorX (or cursor-x nil) result)
-    (puthash :cursorLine (or cursor-line nil) result)
-    (puthash :cursorDx (or cursor-dx nil) result)
-    (puthash :previewCursorScope preview-cursor-scope result)
+    (puthash :cursorX nil result)
+    (puthash :cursorLine nil result)
+    (puthash :cursorDx nil result)
+    (puthash :previewCursorScope nil result)
     (puthash :canPreviewCursorScope nil result)
 
     (puthash :isInCode t result)
@@ -123,6 +123,17 @@
 
     ;; a plist of potential error positions
     (puthash :errorPosCache '() result)
+
+    ;; merge options if they are valid
+    (when (integerp (plist-get options :cursor-x))
+      (puthash :cursorX (plist-get options :cursor-x) result)
+      (puthash :origCursorX (plist-get options :cursor-x) result))
+    (when (integerp (plist-get options :cursor-line))
+      (puthash :cursorLine (plist-get options :cursor-line) result))
+    (when (integerp (plist-get options :cursor-dx))
+      (puthash :cursorDx (plist-get options :cursor-dx) result))
+    (when (booleanp (plist-get options :preview-cursor-scope))
+      (puthash :previewCursorScope (plist-get options :preview-cursor-scope) result))
 
     result))
 
@@ -712,8 +723,8 @@
   (puthash :success nil result)
   (puthash :error err result))
 
-(defun parinferlib--process-text (text mode cursor-x cursor-line cursor-dx preview-cursor-scope)
-  (let* ((result (parinferlib--create-initial-result text mode cursor-x cursor-line cursor-dx preview-cursor-scope))
+(defun parinferlib--process-text (text mode options)
+  (let* ((result (parinferlib--create-initial-result text mode options))
          (orig-lines (gethash :origLines result))
          (lines-length (length orig-lines))
          (i 0)
@@ -746,30 +757,30 @@
            (cursor-x (gethash :cursorX result))
            (tab-stops (gethash :tabStops result)))
       (list :success t
-            :cursorX cursor-x
+            :cursor-x cursor-x
             :text result-text
-            :changedLines (parinferlib--get-changed-lines result)
-            :tabStops tab-stops))
+            :changed-lines (parinferlib--get-changed-lines result)
+            :tab-stops tab-stops))
     (let ((orig-text (gethash :origText result))
           (public-error (gethash :error result))
           (orig-cursor-x (gethash :origCursorX result)))
       (list :success nil
             :text orig-text
-            :cursorX orig-cursor-x
+            :cursor-x orig-cursor-x
             :error public-error))))
 
 ;;------------------------------------------------------------------------------
 ;; Public API
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib-indent-mode (text cursor-x cursor-line cursor-dx &optional preview-cursor-scope)
-  "Indent Mode public function."
-  (let ((result (parinferlib--process-text text :indent cursor-x cursor-line cursor-dx preview-cursor-scope)))
+(defun parinferlib-indent-mode (text &optional options)
+  "Indent Mode public function"
+  (let ((result (parinferlib--process-text text :indent options)))
     (parinferlib--public-result result)))
 
-(defun parinferlib-paren-mode (text cursor-x cursor-line cursor-dx &optional preview-cursor-scope)
+(defun parinferlib-paren-mode (text &optional options)
   "Paren Mode public function"
-  (let ((result (parinferlib--process-text text :paren cursor-x cursor-line cursor-dx preview-cursor-scope)))
+  (let ((result (parinferlib--process-text text :paren options)))
     (parinferlib--public-result result)))
 
 (provide 'parinferlib)

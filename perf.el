@@ -18,8 +18,8 @@
 
 (let* ((filename "tests/really_long_file")
        (text (get-string-from-file filename))
-       (indent-times (benchmark-run (parinferlib-indent-mode text nil nil nil)))
-       (paren-times (benchmark-run (parinferlib-paren-mode text nil nil nil))))
+       (indent-times (benchmark-run (parinferlib-indent-mode text)))
+       (paren-times (benchmark-run (parinferlib-paren-mode text))))
   (message "\nTime to process '%s'" filename)
   (print-times "indent-mode" indent-times)
   (print-times " paren-mode" paren-times))
