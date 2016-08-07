@@ -75,11 +75,16 @@
                         :cursor-line cursor-line
                         :cursor-dx cursor-dx
                         :preview-cursor-scope preview-cursor-scope))
+         (test-idempotence? (and (not out-error)
+                                 (not out-tabstops)
+                                 (not cursor-dx)))
+         (test-cross-mode? (and (not out-error)
+                                (not out-tabstops)
+                                (not in-cursor)))
          (result-1 (if (equal :indent mode)
                      (parinferlib-indent-mode in-text options)
                      (parinferlib-paren-mode in-text options)))
          (out-text-1 (plist-get result-1 :text))
-
          (result-2 (if (equal :indent mode)
                      (parinferlib-indent-mode out-text-1 options)
                      (parinferlib-paren-mode out-text-1 options)))
@@ -99,24 +104,21 @@
 
     ;; TODO: check error output and tabStops here
 
-    ;; only check idempotence and cross-mode preservation when there is not an error
-    (when (and (not out-error)
-               (not out-tabstops))
-      ;; idempotence
-      (when (and (not cursor-dx)
-                 (not (equal out-text-2 expected-text)))
+    ;; idempotence
+    (when test-idempotence?
+      (when (not (equal out-text-2 expected-text))
         (setq failed? t)
-        (print-err (concat mode-string " Idempotence failure: test id " test-id)))
+        (print-err (concat mode-string " Idempotence failure: test id " test-id))))
 
-      ;; cross-mode preservation
-      (when (not in-cursor)
-        (let* ((result-3 (if (equal :indent mode)
-                           (parinferlib-paren-mode out-text-1 nil)
-                           (parinferlib-indent-mode out-text-1 nil)))
-               (out-text-3 (plist-get result-3 :text)))
-          (when (not (equal out-text-3 expected-text))
-            (setq failed? t)
-            (print-err (concat mode-string " cross-mode preservation: test id " test-id))))))
+    ;; cross-mode preservation
+    (when test-cross-mode?
+      (let* ((result-3 (if (equal :indent mode)
+                         (parinferlib-paren-mode out-text-1 options)
+                         (parinferlib-indent-mode out-text-1 options)))
+             (out-text-3 (plist-get result-3 :text)))
+        (when (not (equal out-text-3 expected-text))
+          (setq failed? t)
+          (print-err (concat mode-string " cross-mode preservation: test id " test-id)))))
 
     ;; increment the test counts
     (setq num-tests-ran (1+ num-tests-ran))
