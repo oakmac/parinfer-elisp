@@ -36,16 +36,6 @@
 (defconst parinferlib--LINE_NO_IDX 2)
 (defconst parinferlib--X_IDX 3)
 
-;; A tab stop stack element is a Vector of 3 items
-;; idx : item
-;;   0 : ch
-;;   1 : x
-;;   2 : lineNo
-;; Elements are the same as those in paren stack
-(defconst parinferlib--TAB_CH_IDX 0)
-(defconst parinferlib--TAB_LINE_NO_IDX 1)
-(defconst parinferlib--TAB_X_IDX 2)
-
 ;; determines if a line only contains a Paren Trail (possibly w/ a comment)
 (defconst parinferlib--STANDALONE_PAREN_TRAIL "^[][:space:])}]*\\(;.*\\)?$")
 
@@ -653,9 +643,9 @@
                (equal :paren mode))
       (let ((new-stops nil))
         (dolist (stackel (gethash :parenStack result))
-          (push (vector (aref stackel parinferlib--CH_IDX)
-                        (aref stackel parinferlib--X_IDX)
-                        (aref stackel parinferlib--LINE_NO_IDX))
+          (push (list :ch (aref stackel parinferlib--CH_IDX)
+                      :line-no (aref stackel parinferlib--LINE_NO_IDX)
+                      :x (aref stackel parinferlib--X_IDX))
                 new-stops))
         (puthash :tabStops (nconc new-stops (gethash :tabStops result)) result)))))
 
@@ -747,7 +737,7 @@
       (let ((line (aref lines i))
             (orig-line (aref orig-lines i)))
         (unless (string= line orig-line)
-          (push (vector i line) changed-lines))))))
+          (push (list :line-no i :line line) changed-lines))))))
 
 (defun parinferlib--public-result (result)
   "Return a plist for the Public API."
