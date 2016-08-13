@@ -1,5 +1,5 @@
 ;;; parinferlib.el --- a Parinfer implementation in Emacs Lisp
-;; v1.0.0+DEV
+;; v1.0.0
 ;; https://github.com/oakmac/parinfer-elisp
 ;;
 ;; More information about Parinfer can be found here:
