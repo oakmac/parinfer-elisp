@@ -35,6 +35,18 @@
 (defun string-join (l)
   (mapconcat 'identity l "\n"))
 
+(defun convert-result-error (error)
+  "Converts error from the library result into a list."
+  (list (plist-get error :name)
+        (plist-get error :line-no)
+        (plist-get error :x)))
+
+(defun convert-test-error (error)
+  "Converts error from the test JSON into a list."
+  (list (plist-get error :name)
+        (plist-get error :lineNo)
+        (plist-get error :x)))
+
 (defun convert-result-tabstops (tabstops)
   "Converts tabStops from the library result into a list."
   (mapcar
@@ -118,7 +130,14 @@
       (setq failed? t)
       (print-err (concat mode-string " cursorX In/Out failure: test id " test-id)))
 
-    ;; TODO: check error output
+    ;; check error output
+    (when out-error
+      (let ((result-error2 (convert-result-error (plist-get result-1 :error)))
+            (out-error2 (convert-test-error out-error)))
+        (when (or (plist-get result-1 :success)
+                  (not (equal result-error2 out-error2)))
+          (setq failed? t)
+          (print-err (concat mode-string " Error Output failure: test id " test-id)))))
 
     ;; check tab stops
     (when out-tabstops

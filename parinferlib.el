@@ -144,18 +144,19 @@
 
 (defun parinferlib--cache-error-pos (result error-name line-no x)
   (let* ((error-cache (gethash :errorPosCache result))
-         (updated-error-cache (plist-put error-cache error-name [line-no x])))
+         (position (list :line-no line-no :x x))
+         (updated-error-cache (plist-put error-cache error-name position)))
     (puthash :errorPosCache updated-error-cache result)))
 
 (defun parinferlib--create-error (result error-name line-no x)
   (let* ((error-cache (gethash :errorPosCache result))
          (error-msg (gethash error-name parinferlib--ERR_MESSAGES))
-         (error-pos (plist-get error-cache error-name)))
-    (when error-pos
-      (when line-no
-        (setq line-no (aref error-pos 0)))
-      (when x
-        (setq x (aref error-pos 1))))
+         (error-position (plist-get error-cache error-name)))
+    (when (not line-no)
+      (setq line-no (plist-get error-position :line-no)))
+    (when (not x)
+      (setq x (plist-get error-position :x)))
+
     ;; return a plist of the error
     (list :name error-name
           :message error-msg
