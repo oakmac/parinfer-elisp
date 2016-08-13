@@ -35,6 +35,22 @@
 (defun string-join (l)
   (mapconcat 'identity l "\n"))
 
+(defun convert-result-tabstops (tabstops)
+  "Converts tabStops from the library result into a list."
+  (mapcar
+    (lambda (ts) (list (plist-get ts :ch)
+                       (plist-get ts :line-no)
+                       (plist-get ts :x)))
+    tabstops))
+
+(defun convert-test-tabstops (tabstops)
+  "Converts tabStops from the test JSON into a list."
+  (mapcar
+    (lambda (ts) (list (plist-get ts :ch)
+                       (plist-get ts :lineNo)
+                       (plist-get ts :x)))
+    tabstops))
+
 ;;------------------------------------------------------------------------------
 ;; Load test files
 ;;------------------------------------------------------------------------------
@@ -102,7 +118,15 @@
       (setq failed? t)
       (print-err (concat mode-string " cursorX In/Out failure: test id " test-id)))
 
-    ;; TODO: check error output and tabStops here
+    ;; TODO: check error output
+
+    ;; check tab stops
+    (when out-tabstops
+      (let ((result-tabstops (convert-result-tabstops (plist-get result-1 :tab-stops)))
+            (out-tabstops2 (convert-test-tabstops out-tabstops)))
+        (when (not (equal result-tabstops out-tabstops2))
+          (setq failed? t)
+          (print-err (concat mode-string " Tab Stops failure: test id " test-id)))))
 
     ;; idempotence
     (when test-idempotence?

@@ -640,14 +640,15 @@
         (line-no (gethash :lineNo result))
         (mode (gethash :mode result)))
     (when (and (equal cursor-line line-no)
-               (equal :paren mode))
-      (let ((new-stops nil))
+               (equal :indent mode))
+      (let ((current-stops (gethash :tabStops result))
+            (new-stops '()))
         (dolist (stackel (gethash :parenStack result))
-          (push (list :ch (aref stackel parinferlib--CH_IDX)
-                      :line-no (aref stackel parinferlib--LINE_NO_IDX)
-                      :x (aref stackel parinferlib--X_IDX))
-                new-stops))
-        (puthash :tabStops (nconc new-stops (gethash :tabStops result)) result)))))
+          (let ((new-stop (list :ch (aref stackel parinferlib--CH_IDX)
+                                :line-no (aref stackel parinferlib--LINE_NO_IDX)
+                                :x (aref stackel parinferlib--X_IDX))))
+            (setq new-stops (push new-stop new-stops))))
+        (puthash :tabStops (append current-stops new-stops) result)))))
 
 ;;------------------------------------------------------------------------------
 ;; High-level processing functions
