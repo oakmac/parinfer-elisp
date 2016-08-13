@@ -121,14 +121,14 @@
     ;; in/out text equality
     (when (not (equal out-text-1 expected-text))
       (setq failed? t)
-      (print-err (concat mode-string " In/Out text failure: test id " test-id)))
+      (print-err (concat mode-string " In/Out Text failure: test id " test-id)))
 
     ;; check cursor-x
     (when (and in-cursor
                (not (equal (plist-get result-1 :cursor-x)
                            (plist-get out-cursor :cursorX))))
       (setq failed? t)
-      (print-err (concat mode-string " cursorX In/Out failure: test id " test-id)))
+      (print-err (concat mode-string " cursorX failure: test id " test-id)))
 
     ;; check error output
     (when out-error
@@ -161,7 +161,7 @@
              (out-text-3 (plist-get result-3 :text)))
         (when (not (equal out-text-3 expected-text))
           (setq failed? t)
-          (print-err (concat mode-string " cross-mode preservation: test id " test-id)))))
+          (print-err (concat mode-string " Cross-mode Preservation failure: test id " test-id)))))
 
     ;; increment the test counts
     (setq num-tests-ran (1+ num-tests-ran))
