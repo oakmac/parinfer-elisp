@@ -175,6 +175,7 @@
 (princ "\n\n")
 (squiggly-line)
 (println "Running Parinfer Tests...")
+(defvar start-time (current-time))
 (squiggly-line)
 
 (mapc (lambda (test) (run-test :indent test)) indent-mode-tests)
@@ -185,6 +186,8 @@
   (println (concat done-msg
                    "Ran " (number-to-string num-tests-ran) " tests. "
                    (number-to-string num-tests-failed) " failures.")))
+(println
+  (format "Took %s seconds." (float-time (time-subtract (current-time) start-time))))
 (squiggly-line)
 (princ "\n\n")
 
