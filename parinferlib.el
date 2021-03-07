@@ -55,12 +55,6 @@
 (puthash "(" ")" parinferlib--PARENS)
 (puthash ")" "(" parinferlib--PARENS)
 
-(defun parinferlib--empty? (stack)
-  (zerop (length stack)))
-
-(defun parinferlib--not-empty? (stack)
-  (not (parinferlib--empty? stack)))
-
 (defun parinferlib--open-paren? (ch)
   (or (string= "(" ch)
       (string= "{" ch)
@@ -257,8 +251,7 @@
 ;;------------------------------------------------------------------------------
 
 (defun parinferlib--valid-close-paren? (paren-stack ch)
-  (if (parinferlib--empty? paren-stack)
-    nil
+  (when paren-stack
     (let* ((top-of-stack (car paren-stack))
            (top-of-stack-ch (aref top-of-stack parinferlib--CH_IDX)))
       (string= top-of-stack-ch (gethash ch parinferlib--PARENS)))))
@@ -452,7 +445,7 @@
     (when (not (equal start-x end-x))
       (let ((openers (gethash :parenTrailOpeners result))
             (paren-stack (gethash :parenStack result)))
-        (while (parinferlib--not-empty? openers)
+        (while openers
           (setq paren-stack (cons (pop openers) paren-stack)))
         (puthash :parenTrailOpeners openers result)
         (puthash :parenStack paren-stack result)))))
@@ -706,7 +699,7 @@
            (parinferlib--create-error result parinferlib--ERR_UNCLOSED_QUOTE nil nil)))
   (let* ((paren-stack (gethash :parenStack result))
          (mode (gethash :mode result)))
-    (when (parinferlib--not-empty? paren-stack)
+    (when paren-stack
       (when (equal mode :paren)
         (let* ((paren-stack (gethash :parenStack result))
                (opener (car paren-stack))
