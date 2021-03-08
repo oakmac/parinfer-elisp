@@ -745,15 +745,15 @@
 (defun parinferlib--public-result (result)
   "Return a plist for the Public API."
   (if (gethash :success result)
-    (let* ((lines (gethash :lines result))
-           (result-text (mapconcat 'identity lines parinferlib--NEWLINE))
-           (cursor-x (gethash :cursorX result))
-           (tab-stops (gethash :tabStops result)))
-      (list :success t
-            :cursor-x cursor-x
-            :text result-text
-            :changed-lines (parinferlib--get-changed-lines result)
-            :tab-stops tab-stops))
+      (let* ((lines (gethash :lines result))
+             (result-text (mapconcat 'identity lines parinferlib--NEWLINE))
+             (cursor-x (gethash :cursorX result))
+             (tab-stops (gethash :tabStops result)))
+        (list :success t
+              :cursor-x cursor-x
+              :text result-text
+              :changed-lines (parinferlib--get-changed-lines result)
+              :tab-stops tab-stops))
     (let ((orig-text (gethash :origText result))
           (public-error (gethash :error result))
           (orig-cursor-x (gethash :origCursorX result)))
