@@ -1,4 +1,4 @@
-;;; parinferlib.el --- a Parinfer implementation in Emacs Lisp
+;;; parinferlib.el --- A Parinfer implementation in Emacs Lisp
 ;;
 ;; Author: Chris Oakman
 ;; Homepage: https://github.com/oakmac/parinfer-elisp
@@ -155,16 +155,12 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
 ;; Errors
 ;;------------------------------------------------------------------------------
 
-(defconst parinferlib--ERR_QUOTE_DANGER "quote-danger")
-(defconst parinferlib--ERR_EOL_BACKSLASH "eol-backslash")
-(defconst parinferlib--ERR_UNCLOSED_QUOTE "unclosed-quote")
-(defconst parinferlib--ERR_UNCLOSED_PAREN "unclosed-paren")
-
-(defconst parinferlib--ERR_MESSAGES (make-hash-table :test 'equal))
-(puthash parinferlib--ERR_QUOTE_DANGER   "Quotes must balanced inside comment blocks." parinferlib--ERR_MESSAGES)
-(puthash parinferlib--ERR_EOL_BACKSLASH  "Line cannot end in a hanging backslash." parinferlib--ERR_MESSAGES)
-(puthash parinferlib--ERR_UNCLOSED_QUOTE "String is missing a closing quote." parinferlib--ERR_MESSAGES)
-(puthash parinferlib--ERR_UNCLOSED_PAREN "Unmatched open-paren." parinferlib--ERR_MESSAGES)
+(defconst parinferlib--err-messages
+  '((quote-danger . "Quotes must balanced inside comment blocks.")
+    (eol-backslash . "Line cannot end in a hanging backslash.")
+    (unclosed-quote . "String is missing a closing quote.")
+    (unclosed-paren . "Unmatched open-paren."))
+  "Alist mapping error symbols to error messages.")
 
 (defun parinferlib--cache-error-pos (result error-name line-no x)
   (let* ((error-cache (gethash :errorPosCache result))
@@ -172,17 +168,23 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
          (updated-error-cache (plist-put error-cache error-name position)))
     (puthash :errorPosCache updated-error-cache result)))
 
-(defun parinferlib--create-error (result error-name line-no x)
+(defun parinferlib--create-error (result error line-no x)
+  "Create an error object.
+
+RESULT: the current result.
+ERROR: one of the keys in `parinferlib--err-messages'.
+LINE-NO: current line number.
+X: current position."
   (let* ((error-cache (gethash :errorPosCache result))
-         (error-msg (gethash error-name parinferlib--ERR_MESSAGES))
-         (error-position (plist-get error-cache error-name)))
+         (error-msg (cdr (assq error parinferlib--err-messages)))
+         (error-position (plist-get error-cache error)))
     (when (not line-no)
       (setq line-no (plist-get error-position :line-no)))
     (when (not x)
       (setq x (plist-get error-position :x)))
 
     ;; return a plist of the error
-    (list :name error-name
+    (list :name (symbol-name error)
           :message error-msg
           :line-no line-no
           :x x)))
@@ -334,13 +336,13 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
            (when (gethash :quoteDanger result)
              (let ((line-no (gethash :lineNo result))
                    (x (gethash :x result)))
-               (parinferlib--cache-error-pos result parinferlib--ERR_QUOTE_DANGER line-no x)))))
+               (parinferlib--cache-error-pos result 'quote-danger line-no x)))))
 
         (t
          (let ((line-no (gethash :lineNo result))
                (x (gethash :x result)))
            (puthash :isInStr t result)
-           (parinferlib--cache-error-pos result parinferlib--ERR_UNCLOSED_QUOTE line-no x)))))
+           (parinferlib--cache-error-pos result 'unclosed-quote line-no x)))))
 
 (defun parinferlib--on-backslash (result)
   (puthash :isEscaping t result))
@@ -351,7 +353,7 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
     (when (gethash :isInCode result)
       (let ((line-no (gethash :lineNo result))
             (x (gethash :x result)))
-        (throw 'parinferlib-error (parinferlib--create-error result parinferlib--ERR_EOL_BACKSLASH line-no (1- x)))))
+        (throw 'parinferlib-error (parinferlib--create-error result 'eol-backslash line-no (1- x)))))
     (parinferlib--on-newline result)))
 
 (defun parinferlib--on-char (result)
@@ -594,7 +596,7 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
 (defun parinferlib--on-indent (result)
   (puthash :trackingIndent nil result)
   (when (gethash :quoteDanger result)
-    (throw 'parinferlib-error (parinferlib--create-error result parinferlib--ERR_QUOTE_DANGER nil nil)))
+    (throw 'parinferlib-error (parinferlib--create-error result 'quote-danger nil nil)))
   (let ((mode (gethash :mode result))
         (x (gethash :x result)))
     (when (equal mode :indent)
@@ -716,10 +718,10 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
 (defun parinferlib--finalize-result (result)
   (when (gethash :quoteDanger result)
     (throw 'parinferlib-error
-           (parinferlib--create-error result parinferlib--ERR_QUOTE_DANGER nil nil)))
+           (parinferlib--create-error result 'quote-danger nil nil)))
   (when (gethash :isInStr result)
     (throw 'parinferlib-error
-           (parinferlib--create-error result parinferlib--ERR_UNCLOSED_QUOTE nil nil)))
+           (parinferlib--create-error result 'unclosed-quote nil nil)))
   (let* ((paren-stack (gethash :parenStack result))
          (mode (gethash :mode result)))
     (when paren-stack
@@ -729,7 +731,7 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
                (opener-line-no (parinferlib--stack-elem-line-no opener))
                (opener-x (parinferlib--stack-elem-x opener)))
           (throw 'parinferlib-error
-                 (parinferlib--create-error result parinferlib--ERR_UNCLOSED_PAREN opener-line-no opener-x))))
+                 (parinferlib--create-error result 'unclosed-paren opener-line-no opener-x))))
       (when (equal mode :indent)
         (puthash :x 0 result)
         (parinferlib--on-indent result))))
@@ -740,6 +742,8 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
   (puthash :error err result))
 
 (defun parinferlib--process-text (text mode options)
+  "Process TEXT in MODE with OPTIONS.
+Return the result hash-table."
   (let* ((result (parinferlib--create-initial-result text mode options))
          (orig-lines (gethash :origLines result))
          (lines-length (length orig-lines))
