@@ -39,10 +39,33 @@
 ;;   1 : indentDelta
 ;;   2 : lineNo
 ;;   3 : x
-(defconst parinferlib--CH_IDX 0)
-(defconst parinferlib--INDENT_DELTA_IDX 1)
-(defconst parinferlib--LINE_NO_IDX 2)
-(defconst parinferlib--X_IDX 3)
+;; A Stack Element has four fields:
+;; - ch
+;; - indent-delta
+;; - line-no
+;; - x
+
+(defsubst parinferlib--stack-elem (ch indent-delta line-no x)
+  "Create a Stack Element.
+A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
+  (declare (side-effect-free t))
+  (vector ch indent-delta line-no x))
+(defsubst parinferlib--stack-elem-ch (elem)
+  "Access slot \"ch\" of `parinferlib--stack-elem' struct ELEM."
+  (declare (side-effect-free t))
+  (aref elem 0))
+(defsubst parinferlib--stack-elem-indent-delta (elem)
+  "Access slot \"indent-delta\" of `parinferlib--stack-elem' struct ELEM."
+  (declare (side-effect-free t))
+  (aref elem 1))
+(defsubst parinferlib--stack-elem-line-no (elem)
+  "Access slot \"line-no\" of `parinferlib--stack-elem' struct ELEM."
+  (declare (side-effect-free t))
+  (aref elem 2))
+(defsubst parinferlib--stack-elem-x (elem)
+  "Access slot \"x\" of `parinferlib--stack-elem' struct ELEM."
+  (declare (side-effect-free t))
+  (aref elem 3))
 
 ;; determines if a line only contains a Paren Trail (possibly w/ a comment)
 (defconst parinferlib--STANDALONE_PAREN_TRAIL "^[][:space:])}]*\\(;.*\\)?$")
@@ -252,15 +275,16 @@
 (defun parinferlib--valid-close-paren? (paren-stack ch)
   (when paren-stack
     (let* ((top-of-stack (car paren-stack))
-           (top-of-stack-ch (aref top-of-stack parinferlib--CH_IDX)))
+           (top-of-stack-ch (parinferlib--stack-elem-ch top-of-stack)))
       (string= top-of-stack-ch (gethash ch parinferlib--PARENS)))))
 
 (defun parinferlib--on-open-paren (result)
   (when (gethash :isInCode result)
-    (let* ((new-stack-el (vector (gethash :ch result)
-                                 (gethash :indentDelta result)
-                                 (gethash :lineNo result)
-                                 (gethash :x result)))
+    (let* ((new-stack-el (parinferlib--stack-elem
+                          (gethash :ch result)
+                          (gethash :indentDelta result)
+                          (gethash :lineNo result)
+                          (gethash :x result)))
            (paren-stack (gethash :parenStack result))
            (new-paren-stack (cons new-stack-el paren-stack)))
       (puthash :parenStack new-paren-stack result))))
@@ -268,7 +292,7 @@
 (defun parinferlib--on-matched-close-paren (result)
   (let* ((paren-stack (gethash :parenStack result))
          (opener (pop paren-stack))
-         (opener-x (aref opener parinferlib--X_IDX))
+         (opener-x (parinferlib--stack-elem-x opener))
          (result-x (gethash :x result))
          (openers (gethash :parenTrailOpeners result))
          (new-openers (cons opener openers)))
@@ -456,8 +480,8 @@
     (while (and (> (length paren-stack) 0)
                 (not break?))
       (let* ((opener (car paren-stack))
-             (opener-x (aref opener parinferlib--X_IDX))
-             (opener-ch (aref opener parinferlib--CH_IDX)))
+             (opener-x (parinferlib--stack-elem-x opener))
+             (opener-ch (parinferlib--stack-elem-ch opener)))
         (if (>= opener-x indent-x)
           (progn (pop paren-stack)
                  (setq parens (concat parens (gethash opener-ch parinferlib--PARENS))))
@@ -496,8 +520,8 @@
 (defun parinferlib--append-paren-trail (result)
   (let* ((paren-stack (gethash :parenStack result))
          (opener (pop paren-stack))
-         (opener-ch (aref opener parinferlib--CH_IDX))
-         (opener-x (aref opener parinferlib--X_IDX))
+         (opener-ch (parinferlib--stack-elem-ch opener))
+         (opener-x (parinferlib--stack-elem-x opener))
          (close-ch (gethash opener-ch parinferlib--PARENS))
          (paren-trail-line-no (gethash :parenTrailLineNo result))
          (end-x (gethash :parenTrailEndX result)))
@@ -543,8 +567,8 @@
          (paren-stack (gethash :parenStack result))
          (opener (car paren-stack)))
     (when opener
-      (let* ((opener-x (aref opener parinferlib--X_IDX))
-             (opener-indent-delta (aref opener parinferlib--INDENT_DELTA_IDX)))
+      (let* ((opener-x (parinferlib--stack-elem-x opener))
+             (opener-indent-delta (parinferlib--stack-elem-indent-delta opener)))
         (setq min-indent (1+ opener-x))
         (setq new-indent (+ new-indent opener-indent-delta))))
     (setq new-indent (parinferlib--clamp new-indent min-indent max-indent))
@@ -645,9 +669,9 @@
       (let ((current-stops (gethash :tabStops result))
             (new-stops '()))
         (dolist (stackel (gethash :parenStack result))
-          (let ((new-stop (list :ch (aref stackel parinferlib--CH_IDX)
-                                :line-no (aref stackel parinferlib--LINE_NO_IDX)
-                                :x (aref stackel parinferlib--X_IDX))))
+          (let ((new-stop (list :ch (parinferlib--stack-elem-ch stackel)
+                                :line-no (parinferlib--stack-elem-line-no stackel)
+                                :x (parinferlib--stack-elem-x stackel))))
             (setq new-stops (push new-stop new-stops))))
         (puthash :tabStops (append current-stops new-stops) result)))))
 
@@ -702,8 +726,8 @@
       (when (equal mode :paren)
         (let* ((paren-stack (gethash :parenStack result))
                (opener (car paren-stack))
-               (opener-line-no (aref opener parinferlib--LINE_NO_IDX))
-               (opener-x (aref opener parinferlib--X_IDX)))
+               (opener-line-no (parinferlib--stack-elem-line-no opener))
+               (opener-x (parinferlib--stack-elem-x opener)))
           (throw 'parinferlib-error
                  (parinferlib--create-error result parinferlib--ERR_UNCLOSED_PAREN opener-line-no opener-x))))
       (when (equal mode :indent)
