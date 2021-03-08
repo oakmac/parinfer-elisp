@@ -56,20 +56,19 @@
 (puthash ")" "(" parinferlib--PARENS)
 
 (defun parinferlib--open-paren? (ch)
-  (or (string= "(" ch)
-      (string= "{" ch)
-      (string= "[" ch)))
+  "Is CH an open paren?"
+  (member ch '("(" "{" "[")))
 
 (defun parinferlib--close-paren? (ch)
-  (or (string= ")" ch)
-      (string= "}" ch)
-      (string= "]" ch)))
+  "Is CH a close paren?"
+  (member ch '(")" "}" "]")))
 
 ;;------------------------------------------------------------------------------
 ;; Result Structure
 ;;------------------------------------------------------------------------------
 
 (defun parinferlib--create-initial-result (text mode options)
+  "Initialize the result object."
   (let ((lines-vector (vconcat (split-string text parinferlib--LINE_ENDING_REGEX)))
         (result (make-hash-table)))
     (puthash :mode mode result)
@@ -767,12 +766,18 @@
 ;;------------------------------------------------------------------------------
 
 (defun parinferlib-indent-mode (text &optional options)
-  "Indent Mode public function"
+  "Indent Mode public function.
+
+TEXT should be a string to process with Parinfer.
+OPTIONS should be a plist; see README.md for all options."
   (let ((result (parinferlib--process-text text :indent options)))
     (parinferlib--public-result result)))
 
 (defun parinferlib-paren-mode (text &optional options)
-  "Paren Mode public function"
+  "Paren Mode public function.
+
+TEXT should be a string to process with Parinfer.
+OPTIONS should be a plist; see README.md for all options."
   (let ((result (parinferlib--process-text text :paren options)))
     (parinferlib--public-result result)))
 
