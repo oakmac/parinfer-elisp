@@ -356,16 +356,18 @@ X: current position."
         (throw 'parinferlib-error (parinferlib--create-error result 'eol-backslash line-no (1- x)))))
     (parinferlib--on-newline result)))
 
-(defun parinferlib--on-char (result)
-  (let ((ch (gethash :ch result)))
-    (cond ((gethash :isEscaping result)   (parinferlib--after-backslash result))
-          ((parinferlib--open-paren? ch)  (parinferlib--on-open-paren result))
-          ((parinferlib--close-paren? ch) (parinferlib--on-close-paren result))
-          ((string= ch parinferlib--DOUBLE_QUOTE) (parinferlib--on-quote result))
-          ((string= ch parinferlib--SEMICOLON)    (parinferlib--on-semicolon result))
-          ((string= ch parinferlib--BACKSLASH)    (parinferlib--on-backslash result))
-          ((string= ch parinferlib--TAB)          (parinferlib--on-tab result))
-          ((string= ch parinferlib--NEWLINE)      (parinferlib--on-newline result))))
+(defun parinferlib--on-char (result ch)
+  "Do stuff depending on CH and RESULT.
+CH is the character we're processing.
+RESULT is the current state."
+  (cond ((gethash :isEscaping result)   (parinferlib--after-backslash result))
+        ((parinferlib--open-paren? ch)  (parinferlib--on-open-paren result))
+        ((parinferlib--close-paren? ch) (parinferlib--on-close-paren result))
+        ((string= ch parinferlib--DOUBLE_QUOTE) (parinferlib--on-quote result))
+        ((string= ch parinferlib--SEMICOLON)    (parinferlib--on-semicolon result))
+        ((string= ch parinferlib--BACKSLASH)    (parinferlib--on-backslash result))
+        ((string= ch parinferlib--TAB)          (parinferlib--on-tab result))
+        ((string= ch parinferlib--NEWLINE)      (parinferlib--on-newline result)))
   (let ((in-comment? (gethash :isInComment result))
         (in-string? (gethash :isInStr result)))
     (puthash :isInCode (and (not in-comment?) (not in-string?)) result)))
@@ -694,9 +696,9 @@ X: current position."
       (parinferlib--check-indent result))
 
     (if (gethash :skipChar result)
-      (puthash :ch "" result)
-      (progn (parinferlib--on-char result)
-             (parinferlib--update-paren-trail-bounds result)))
+        (puthash :ch "" result)
+      (parinferlib--on-char result ch)
+      (parinferlib--update-paren-trail-bounds result))
 
     (parinferlib--commit-char result orig-ch)))
 
