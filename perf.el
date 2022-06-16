@@ -1,5 +1,6 @@
 (require 'benchmark)
-(load-file "parinferlib.el")
+(add-to-list 'load-path (expand-file-name "."))
+(load "parinferlib")
 
 ;; from: http://ergoemacs.org/emacs/elisp_read_file_content.html
 (defun get-string-from-file (filePath)

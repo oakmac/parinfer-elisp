@@ -8,7 +8,8 @@
 ;; The script will exit with "1" on any test failure. Exit "0" otherwise.
 
 (require 'json)
-(load-file "parinferlib.el")
+(add-to-list 'load-path (expand-file-name "."))
+(load "parinferlib")
 
 ;; NOTE: useful when debugging a failed test
 ;; (setq debug-on-error t)
