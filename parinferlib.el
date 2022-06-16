@@ -1,4 +1,4 @@
-;;; parinferlib.el --- A Parinfer implementation in Emacs Lisp
+;;; parinferlib.el --- A Parinfer implementation in Emacs Lisp  -*- lexical-binding: t; -*-
 ;;
 ;; Author: Chris Oakman
 ;; Homepage: https://github.com/oakmac/parinfer-elisp
@@ -645,10 +645,7 @@ CH is the character we're processing."
           (parinferlib--append-paren-trail))))))
 
 (defun parinferlib--check-indent ()
-  (let ((ch parinferlib--ch)
-        (result-x parinferlib--x)
-        (cursor-x parinferlib--cursorX)
-        (line-no parinferlib--lineNo))
+  (let ((ch parinferlib--ch))
     (cond ((parinferlib--close-paren? ch)
            (parinferlib--on-leading-close-paren))
 
@@ -786,11 +783,12 @@ CH is the character we're processing."
          (lines parinferlib--lines)
          (lines-length (min (length orig-lines) (length lines)))
          (changed-lines nil))
-    (dotimes (i lines-length changed-lines)
+    (dotimes (i lines-length)
       (let ((line (aref lines i))
             (orig-line (aref orig-lines i)))
         (unless (string= line orig-line)
-          (push (list :line-no i :line line) changed-lines))))))
+          (push (list :line-no i :line line) changed-lines))))
+    changed-lines))
 
 (defun parinferlib--public-result ()
   "Return a plist for the Public API."
