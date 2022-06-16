@@ -1,2 +1,2 @@
-# ignore diff files
 *.diff
+*.elc
