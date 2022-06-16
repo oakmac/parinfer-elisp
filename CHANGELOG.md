@@ -1,3 +1,8 @@
+## 1.1.0 - 2022-06-??
+* 50% performance increase with zero change to the public API
+  * This comes from using global variables for state instead of an expensive hash table
+* Use GitHub Actions to test across Emacs 24.1~28.1
+
 ## 1.0.0 - 2016-08-13
 * First Semantic Versioning Major Release :)
 * Fast-forward to parinfer.js v1.8.0. Thanks [Kurvivor19]!

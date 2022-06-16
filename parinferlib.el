@@ -2,7 +2,7 @@
 ;;
 ;; Author: Chris Oakman
 ;; Homepage: https://github.com/oakmac/parinfer-elisp
-;; Version: 1.0.0-kisaragi
+;; Version: 1.1.0
 ;; Package-Requires: ((emacs "24.1"))
 ;; Keywords: parinfer, extensions
 ;;
