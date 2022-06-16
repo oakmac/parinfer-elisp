@@ -1,4 +1,4 @@
-# Parinfer in Emacs Lisp [![Build Status](https://travis-ci.org/oakmac/parinfer-elisp.svg?branch=master)](https://travis-ci.org/oakmac/parinfer-elisp)
+# Parinfer in Emacs Lisp [![Build Status](https://github.com/kisaragi-hiu/parinfer-elisp/actions/workflows/test.yml/badge.svg)](https://github.com/kisaragi-hiu/parinfer-elisp/actions)
 
 A [Parinfer] implementation in [Emacs Lisp].
 
