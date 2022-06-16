@@ -197,7 +197,7 @@ X: current position."
   (let* ((orig-length (length orig))
          (head (substring orig 0 start))
          (tail (if (>= end orig-length)
-                 ""
+                   ""
                  (substring orig end))))
     (concat head replace tail)))
 
@@ -310,7 +310,7 @@ X: current position."
 (defun parinferlib--on-close-paren (result)
   (when (gethash :isInCode result)
     (if (parinferlib--valid-close-paren? (gethash :parenStack result) (gethash :ch result))
-      (parinferlib--on-matched-close-paren result)
+        (parinferlib--on-matched-close-paren result)
       (parinferlib--on-unmatched-close-paren result))))
 
 (defun parinferlib--on-tab (result)
@@ -428,7 +428,7 @@ RESULT is the current state."
          (line (aref lines line-no))
          (x (gethash :x result))
          (prev-ch (if (> x 0)
-                    (string (aref line (1- x)))
+                      (string (aref line (1- x)))
                     nil))
          (ch (gethash :ch result))
          (should-reset? (and (gethash :isInCode result)
@@ -487,8 +487,8 @@ RESULT is the current state."
              (opener-x (parinferlib--stack-elem-x opener))
              (opener-ch (parinferlib--stack-elem-ch opener)))
         (if (>= opener-x indent-x)
-          (progn (pop paren-stack)
-                 (setq parens (concat parens (gethash opener-ch parinferlib--PARENS))))
+            (progn (pop paren-stack)
+                   (setq parens (concat parens (gethash opener-ch parinferlib--PARENS))))
           (setq break? t))))
     (puthash :parenStack paren-stack result)
     (let ((paren-trail-line-no (gethash :parenTrailLineNo result))
@@ -512,7 +512,7 @@ RESULT is the current state."
         (while (< i end-x)
           (let ((ch (string (aref line i))))
             (if (parinferlib--close-paren? ch)
-              (setq new-trail (concat new-trail ch))
+                (setq new-trail (concat new-trail ch))
               (setq space-count (1+ space-count))))
           (setq i (1+ i)))
         (when (> space-count 0)
@@ -546,18 +546,18 @@ RESULT is the current state."
          (line-no (gethash :lineNo result))
          (cursor-line (gethash :cursorLine result)))
     (cond
-      (in-str?
-       (parinferlib--invalidate-paren-trail result))
+     (in-str?
+      (parinferlib--invalidate-paren-trail result))
 
-      ((equal mode :indent)
-       (progn
-         (parinferlib--clamp-paren-trail-to-cursor result)
-         (parinferlib--pop-paren-trail result)))
+     ((equal mode :indent)
+      (progn
+        (parinferlib--clamp-paren-trail-to-cursor result)
+        (parinferlib--pop-paren-trail result)))
 
 
-      ((and (equal mode :paren)
-            (not (equal line-no cursor-line)))
-       (parinferlib--clean-paren-trail result)))))
+     ((and (equal mode :paren)
+           (not (equal line-no cursor-line)))
+      (parinferlib--clean-paren-trail result)))))
 
 ;;------------------------------------------------------------------------------
 ;; Indentation functions
@@ -615,8 +615,8 @@ RESULT is the current state."
            (ch (gethash :ch result)))
       (when (parinferlib--valid-close-paren? paren-stack ch)
         (if (parinferlib--cursor-on-left? result)
-          (progn (puthash :skipChar nil result)
-                 (parinferlib--on-indent result))
+            (progn (puthash :skipChar nil result)
+                   (parinferlib--on-indent result))
           (parinferlib--append-paren-trail result))))))
 
 (defun parinferlib--check-indent (result)
@@ -662,7 +662,7 @@ RESULT is the current state."
                result)
       (parinferlib--init-preview-cursor-scope result))
     (when (equal :paren mode)
-       (puthash :trackingIndent (not in-str?) result))))
+      (puthash :trackingIndent (not in-str?) result))))
 
 (defun parinferlib--set-tab-stops (result)
   (let ((cursor-line (gethash :cursorLine result))
