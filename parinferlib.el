@@ -87,69 +87,96 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
   (member ch '(")" "}" "]")))
 
 ;;------------------------------------------------------------------------------
-;; Result Structure
+;; State
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--create-initial-result (text mode options)
-  "Initialize the result object."
-  (let ((lines-vector (vconcat (split-string text parinferlib--LINE_ENDING_REGEX)))
-        (result (make-hash-table)))
-    (puthash :mode mode result)
+;; State is always reset by the entry points calling process-text, so
+;; we don't need to use buffer local variables.
+(defvar parinferlib--mode nil)
+(defvar parinferlib--origText nil)
+(defvar parinferlib--origLines nil)
+(defvar parinferlib--origCursorX nil)
+(defvar parinferlib--lines nil)
+(defvar parinferlib--lineNo nil)
+(defvar parinferlib--ch nil)
+(defvar parinferlib--x nil)
+(defvar parinferlib--parenStack nil)
+(defvar parinferlib--tabStops nil)
+(defvar parinferlib--parenTrailLineNo nil)
+(defvar parinferlib--parenTrailStartX nil)
+(defvar parinferlib--parenTrailEndX nil)
+(defvar parinferlib--parenTrailOpeners nil)
+(defvar parinferlib--cursorX nil)
+(defvar parinferlib--cursorLine nil)
+(defvar parinferlib--cursorDx nil)
+(defvar parinferlib--previewCursorScope nil)
+(defvar parinferlib--canPreviewCursorScope nil)
+(defvar parinferlib--isInCode nil)
+(defvar parinferlib--isEscaping nil)
+(defvar parinferlib--isInStr nil)
+(defvar parinferlib--isInComment nil)
+(defvar parinferlib--commentX nil)
+(defvar parinferlib--quoteDanger nil)
+(defvar parinferlib--trackingIndent nil)
+(defvar parinferlib--skipChar nil)
+(defvar parinferlib--success nil)
+(defvar parinferlib--maxIndent nil)
+(defvar parinferlib--indentDelta nil)
+(defvar parinferlib--error nil)
+(defvar parinferlib--errorPosCache nil
+  "A plist of potential error positions.")
+(defvar parinferlib--cursorX nil)
+(defvar parinferlib--origCursorX nil)
+(defvar parinferlib--cursorLine nil)
+(defvar parinferlib--cursorDx nil)
+(defvar parinferlib--previewCursorScope nil)
 
-    (puthash :origText text result)
-    (puthash :origLines lines-vector result)
-    (puthash :origCursorX nil result)
-
-    (puthash :lines (make-vector (length lines-vector) nil) result)
-    (puthash :lineNo -1 result)
-    (puthash :ch "" result)
-    (puthash :x 0 result)
-
-    (puthash :parenStack '() result)
-    (puthash :tabStops '() result)
-
-    (puthash :parenTrailLineNo nil result)
-    (puthash :parenTrailStartX nil result)
-    (puthash :parenTrailEndX nil result)
-    (puthash :parenTrailOpeners '() result)
-
-    (puthash :cursorX nil result)
-    (puthash :cursorLine nil result)
-    (puthash :cursorDx nil result)
-    (puthash :previewCursorScope nil result)
-    (puthash :canPreviewCursorScope nil result)
-
-    (puthash :isInCode t result)
-    (puthash :isEscaping nil result)
-    (puthash :isInStr nil result)
-    (puthash :isInComment nil result)
-    (puthash :commentX nil result)
-
-    (puthash :quoteDanger nil result)
-    (puthash :trackingIndent nil result)
-    (puthash :skipChar nil result)
-    (puthash :success nil result)
-
-    (puthash :maxIndent nil result)
-    (puthash :indentDelta 0 result)
-
-    (puthash :error nil result)
-
-    ;; a plist of potential error positions
-    (puthash :errorPosCache '() result)
+(defun parinferlib--initialize (text mode options)
+  "Reset state according to TEXT, MODE, and OPTIONS."
+  (let ((lines-vector (vconcat (split-string text parinferlib--LINE_ENDING_REGEX))))
+    (setq parinferlib--mode mode
+          parinferlib--origText text
+          parinferlib--origLines lines-vector
+          parinferlib--origCursorX nil
+          parinferlib--lines (make-vector (length lines-vector) nil)
+          parinferlib--lineNo -1
+          parinferlib--ch ""
+          parinferlib--x 0
+          parinferlib--parenStack nil
+          parinferlib--tabStops nil
+          parinferlib--parenTrailLineNo nil
+          parinferlib--parenTrailStartX nil
+          parinferlib--parenTrailEndX nil
+          parinferlib--parenTrailOpeners nil
+          parinferlib--cursorX nil
+          parinferlib--cursorLine nil
+          parinferlib--cursorDx nil
+          parinferlib--previewCursorScope nil
+          parinferlib--canPreviewCursorScope nil
+          parinferlib--isInCode t
+          parinferlib--isEscaping nil
+          parinferlib--isInStr nil
+          parinferlib--isInComment nil
+          parinferlib--commentX nil
+          parinferlib--quoteDanger nil
+          parinferlib--trackingIndent nil
+          parinferlib--skipChar nil
+          parinferlib--success nil
+          parinferlib--maxIndent nil
+          parinferlib--indentDelta 0
+          parinferlib--error nil
+          parinferlib--errorPosCache nil)
 
     ;; merge options if they are valid
     (when (integerp (plist-get options :cursor-x))
-      (puthash :cursorX (plist-get options :cursor-x) result)
-      (puthash :origCursorX (plist-get options :cursor-x) result))
+      (setq parinferlib--cursorX (plist-get options :cursor-x))
+      (setq parinferlib--origCursorX (plist-get options :cursor-x)))
     (when (integerp (plist-get options :cursor-line))
-      (puthash :cursorLine (plist-get options :cursor-line) result))
+      (setq parinferlib--cursorLine (plist-get options :cursor-line)))
     (when (integerp (plist-get options :cursor-dx))
-      (puthash :cursorDx (plist-get options :cursor-dx) result))
+      (setq parinferlib--cursorDx (plist-get options :cursor-dx)))
     (when (booleanp (plist-get options :preview-cursor-scope))
-      (puthash :previewCursorScope (plist-get options :preview-cursor-scope) result))
-
-    result))
+      (setq parinferlib--previewCursorScope (plist-get options :preview-cursor-scope)))))
 
 ;;------------------------------------------------------------------------------
 ;; Errors
@@ -162,20 +189,19 @@ A Stack Element has four fields: CH, INDENT-DELTA, LINE-NO, and X."
     (unclosed-paren . "Unmatched open-paren."))
   "Alist mapping error symbols to error messages.")
 
-(defun parinferlib--cache-error-pos (result error-name line-no x)
-  (let* ((error-cache (gethash :errorPosCache result))
+(defun parinferlib--cache-error-pos (error-name line-no x)
+  (let* ((error-cache parinferlib--errorPosCache)
          (position (list :line-no line-no :x x))
          (updated-error-cache (plist-put error-cache error-name position)))
-    (puthash :errorPosCache updated-error-cache result)))
+    (setq parinferlib--errorPosCache updated-error-cache)))
 
-(defun parinferlib--create-error (result error line-no x)
+(defun parinferlib--create-error (error line-no x)
   "Create an error object.
 
-RESULT: the current result.
 ERROR: one of the keys in `parinferlib--err-messages'.
 LINE-NO: current line number.
 X: current position."
-  (let* ((error-cache (gethash :errorPosCache result))
+  (let* ((error-cache parinferlib--errorPosCache)
          (error-msg (cdr (assq error parinferlib--err-messages)))
          (error-position (plist-get error-cache error)))
     (when (not line-no)
@@ -205,59 +231,59 @@ X: current position."
 ;; Line Operations
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--cursor-affected? (result start end)
-  (let ((cursor-x (gethash :cursorX result)))
+(defun parinferlib--cursor-affected? (start end)
+  (let ((cursor-x parinferlib--cursorX))
     (if (and (equal cursor-x start)
              (equal cursor-x end))
         (zerop cursor-x)
       (>= cursor-x end))))
 
-(defun parinferlib--shift-cursor-on-edit (result line-no start end replace)
+(defun parinferlib--shift-cursor-on-edit (line-no start end replace)
   (let* ((old-length (- end start))
          (new-length (length replace))
          (dx (- new-length old-length))
-         (cursor-line (gethash :cursorLine result))
-         (cursor-x (gethash :cursorX result)))
+         (cursor-line parinferlib--cursorLine)
+         (cursor-x parinferlib--cursorX))
     (when (and dx
                (not (zerop dx))
                (equal cursor-line line-no)
                cursor-x
-               (parinferlib--cursor-affected? result start end))
-      (puthash :cursorX (+ cursor-x dx) result))))
+               (parinferlib--cursor-affected? start end))
+      (setq parinferlib--cursorX (+ cursor-x dx)))))
 
-(defun parinferlib--replace-within-line (result line-no start end replace)
-  (let* ((lines (gethash :lines result))
+(defun parinferlib--replace-within-line (line-no start end replace)
+  (let* ((lines parinferlib--lines)
          (line (aref lines line-no))
          (new-line (parinferlib--replace-within-string line start end replace)))
     (aset lines line-no new-line)
-    (parinferlib--shift-cursor-on-edit result line-no start end replace)))
+    (parinferlib--shift-cursor-on-edit line-no start end replace)))
 
-(defun parinferlib--insert-within-line (result line-no idx insert)
-  (parinferlib--replace-within-line result line-no idx idx insert))
+(defun parinferlib--insert-within-line (line-no idx insert)
+  (parinferlib--replace-within-line line-no idx idx insert))
 
-(defun parinferlib--init-line (result line)
-  (let* ((current-line-no (gethash :lineNo result))
+(defun parinferlib--init-line (line)
+  (let* ((current-line-no parinferlib--lineNo)
          (new-line-no (1+ current-line-no))
-         (lines (gethash :lines result)))
+         (lines parinferlib--lines))
     (aset lines new-line-no line)
 
-    (puthash :x 0 result)
-    (puthash :lineNo new-line-no result)
+    (setq parinferlib--x 0)
+    (setq parinferlib--lineNo new-line-no)
 
     ;; reset line-specific state
-    (puthash :commentX nil result)
-    (puthash :indentDelta 0 result)))
+    (setq parinferlib--commentX nil)
+    (setq parinferlib--indentDelta 0)))
 
-;; if the current character has changed, commit it's change to the current line
-(defun parinferlib--commit-char (result orig-ch)
-  (let* ((line-no (gethash :lineNo result))
-         (x (gethash :x result))
-         (ch (gethash :ch result))
+(defun parinferlib--commit-char (orig-ch)
+  "if the current character has changed, commit its change to the current line"
+  (let* ((line-no parinferlib--lineNo)
+         (x parinferlib--x)
+         (ch parinferlib--ch)
          (ch-length (length ch))
          (orig-ch-length (length orig-ch)))
     (when (not (string= orig-ch ch))
-      (parinferlib--replace-within-line result line-no x (+ x orig-ch-length) ch))
-    (puthash :x (+ x ch-length) result)))
+      (parinferlib--replace-within-line line-no x (+ x orig-ch-length) ch))
+    (setq parinferlib--x (+ x ch-length))))
 
 ;;------------------------------------------------------------------------------
 ;; Util
@@ -280,158 +306,157 @@ X: current position."
            (top-of-stack-ch (parinferlib--stack-elem-ch top-of-stack)))
       (string= top-of-stack-ch (gethash ch parinferlib--PARENS)))))
 
-(defun parinferlib--on-open-paren (result)
-  (when (gethash :isInCode result)
+(defun parinferlib--on-open-paren ()
+  (when parinferlib--isInCode
     (let* ((new-stack-el (parinferlib--stack-elem
-                          (gethash :ch result)
-                          (gethash :indentDelta result)
-                          (gethash :lineNo result)
-                          (gethash :x result)))
-           (paren-stack (gethash :parenStack result))
+                          parinferlib--ch
+                          parinferlib--indentDelta
+                          parinferlib--lineNo
+                          parinferlib--x))
+           (paren-stack parinferlib--parenStack)
            (new-paren-stack (cons new-stack-el paren-stack)))
-      (puthash :parenStack new-paren-stack result))))
+      (setq parinferlib--parenStack new-paren-stack))))
 
-(defun parinferlib--on-matched-close-paren (result)
-  (let* ((paren-stack (gethash :parenStack result))
+(defun parinferlib--on-matched-close-paren ()
+  (let* ((paren-stack parinferlib--parenStack)
          (opener (pop paren-stack))
          (opener-x (parinferlib--stack-elem-x opener))
-         (result-x (gethash :x result))
-         (openers (gethash :parenTrailOpeners result))
+         (result-x parinferlib--x)
+         (openers parinferlib--parenTrailOpeners)
          (new-openers (cons opener openers)))
-    (puthash :parenTrailEndX (1+ result-x) result)
-    (puthash :parenTrailOpeners new-openers result)
-    (puthash :maxIndent opener-x result)
+    (setq parinferlib--parenTrailEndX (1+ result-x))
+    (setq parinferlib--parenTrailOpeners new-openers)
+    (setq parinferlib--maxIndent opener-x)
     ;; the first element of paren-stack was removed when we called "pop" earlier
-    (puthash :parenStack paren-stack result)))
+    (setq parinferlib--parenStack paren-stack)))
 
-(defun parinferlib--on-unmatched-close-paren (result)
-  (puthash :ch "" result))
+(defun parinferlib--on-unmatched-close-paren ()
+  (setq parinferlib--ch ""))
 
-(defun parinferlib--on-close-paren (result)
-  (when (gethash :isInCode result)
-    (if (parinferlib--valid-close-paren? (gethash :parenStack result) (gethash :ch result))
-        (parinferlib--on-matched-close-paren result)
-      (parinferlib--on-unmatched-close-paren result))))
+(defun parinferlib--on-close-paren ()
+  (when parinferlib--isInCode
+    (if (parinferlib--valid-close-paren? parinferlib--parenStack parinferlib--ch)
+        (parinferlib--on-matched-close-paren)
+      (parinferlib--on-unmatched-close-paren))))
 
-(defun parinferlib--on-tab (result)
-  (when (gethash :isInCode result)
-    (puthash :ch parinferlib--DOUBLE_SPACE result)))
+(defun parinferlib--on-tab ()
+  (when parinferlib--isInCode
+    (setq parinferlib--ch parinferlib--DOUBLE_SPACE)))
 
-(defun parinferlib--on-semicolon (result)
-  (when (gethash :isInCode result)
-    (puthash :isInComment t result)
-    (puthash :commentX (gethash :x result) result)))
+(defun parinferlib--on-semicolon ()
+  (when parinferlib--isInCode
+    (setq parinferlib--isInComment t)
+    (setq parinferlib--commentX parinferlib--x)))
 
-(defun parinferlib--on-newline (result)
-  (puthash :isInComment nil result)
-  (puthash :ch "" result))
+(defun parinferlib--on-newline ()
+  (setq parinferlib--isInComment nil)
+  (setq parinferlib--ch ""))
 
-(defun parinferlib--on-quote (result)
-  (cond ((gethash :isInStr result)
-         (puthash :isInStr nil result))
+(defun parinferlib--on-quote ()
+  (cond (parinferlib--isInStr
+         (setq parinferlib--isInStr nil))
 
-        ((gethash :isInComment result)
-         (let ((quote-danger (gethash :quoteDanger result)))
-           (puthash :quoteDanger (not quote-danger) result)
-           (when (gethash :quoteDanger result)
-             (let ((line-no (gethash :lineNo result))
-                   (x (gethash :x result)))
-               (parinferlib--cache-error-pos result 'quote-danger line-no x)))))
+        (parinferlib--isInComment
+         (let ((quote-danger parinferlib--quoteDanger))
+           (setq parinferlib--quoteDanger (not quote-danger))
+           (when parinferlib--quoteDanger
+             (let ((line-no parinferlib--lineNo)
+                   (x parinferlib--x))
+               (parinferlib--cache-error-pos 'quote-danger line-no x)))))
 
         (t
-         (let ((line-no (gethash :lineNo result))
-               (x (gethash :x result)))
-           (puthash :isInStr t result)
-           (parinferlib--cache-error-pos result 'unclosed-quote line-no x)))))
+         (let ((line-no parinferlib--lineNo)
+               (x parinferlib--x))
+           (setq parinferlib--isInStr t)
+           (parinferlib--cache-error-pos 'unclosed-quote line-no x)))))
 
-(defun parinferlib--on-backslash (result)
-  (puthash :isEscaping t result))
+(defun parinferlib--on-backslash ()
+  (setq parinferlib--isEscaping t))
 
-(defun parinferlib--after-backslash (result)
-  (puthash :isEscaping nil result)
-  (when (string= (gethash :ch result) parinferlib--NEWLINE)
-    (when (gethash :isInCode result)
-      (let ((line-no (gethash :lineNo result))
-            (x (gethash :x result)))
-        (throw 'parinferlib-error (parinferlib--create-error result 'eol-backslash line-no (1- x)))))
-    (parinferlib--on-newline result)))
+(defun parinferlib--after-backslash ()
+  (setq parinferlib--isEscaping nil)
+  (when (string= parinferlib--ch parinferlib--NEWLINE)
+    (when parinferlib--isInCode
+      (let ((line-no parinferlib--lineNo)
+            (x parinferlib--x))
+        (throw 'parinferlib-error (parinferlib--create-error 'eol-backslash line-no (1- x)))))
+    (parinferlib--on-newline)))
 
-(defun parinferlib--on-char (result ch)
-  "Do stuff depending on CH and RESULT.
-CH is the character we're processing.
-RESULT is the current state."
-  (cond ((gethash :isEscaping result)   (parinferlib--after-backslash result))
-        ((parinferlib--open-paren? ch)  (parinferlib--on-open-paren result))
-        ((parinferlib--close-paren? ch) (parinferlib--on-close-paren result))
-        ((string= ch parinferlib--DOUBLE_QUOTE) (parinferlib--on-quote result))
-        ((string= ch parinferlib--SEMICOLON)    (parinferlib--on-semicolon result))
-        ((string= ch parinferlib--BACKSLASH)    (parinferlib--on-backslash result))
-        ((string= ch parinferlib--TAB)          (parinferlib--on-tab result))
-        ((string= ch parinferlib--NEWLINE)      (parinferlib--on-newline result)))
-  (let ((in-comment? (gethash :isInComment result))
-        (in-string? (gethash :isInStr result)))
-    (puthash :isInCode (and (not in-comment?) (not in-string?)) result)))
+(defun parinferlib--on-char (ch)
+  "Do stuff depending on CH and current state.
+CH is the character we're processing."
+  (cond (parinferlib--isEscaping                   (parinferlib--after-backslash))
+        ((parinferlib--open-paren? ch)             (parinferlib--on-open-paren))
+        ((parinferlib--close-paren? ch)            (parinferlib--on-close-paren))
+        ((string= ch parinferlib--DOUBLE_QUOTE)    (parinferlib--on-quote))
+        ((string= ch parinferlib--SEMICOLON)       (parinferlib--on-semicolon))
+        ((string= ch parinferlib--BACKSLASH)       (parinferlib--on-backslash))
+        ((string= ch parinferlib--TAB)             (parinferlib--on-tab))
+        ((string= ch parinferlib--NEWLINE)         (parinferlib--on-newline)))
+  (let ((in-comment? parinferlib--isInComment)
+        (in-string? parinferlib--isInStr))
+    (setq parinferlib--isInCode (and (not in-comment?) (not in-string?)))))
 
 ;;------------------------------------------------------------------------------
 ;; Cursor functions
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--cursor-on-left? (result)
-  (let* ((line-no (gethash :lineNo result))
-         (cursor-line (gethash :cursorLine result))
-         (cursor-x (gethash :cursorX result))
-         (result-x (gethash :x result)))
+(defun parinferlib--cursor-on-left? ()
+  (let* ((line-no parinferlib--lineNo)
+         (cursor-line parinferlib--cursorLine)
+         (cursor-x parinferlib--cursorX)
+         (result-x parinferlib--x))
     (and (equal line-no cursor-line)
          cursor-x
          result-x
          (<= cursor-x result-x))))
 
-(defun parinferlib--cursor-on-right? (result x)
-  (let* ((line-no (gethash :lineNo result))
-         (cursor-line (gethash :cursorLine result))
-         (cursor-x (gethash :cursorX result)))
+(defun parinferlib--cursor-on-right? (x)
+  (let* ((line-no parinferlib--lineNo)
+         (cursor-line parinferlib--cursorLine)
+         (cursor-x parinferlib--cursorX))
     (and (equal line-no cursor-line)
          cursor-x
          x
          (> cursor-x x))))
 
-(defun parinferlib--cursor-in-comment? (result)
-  (parinferlib--cursor-on-right? result (gethash :commentX result)))
+(defun parinferlib--cursor-in-comment? ()
+  (parinferlib--cursor-on-right? parinferlib--commentX))
 
-(defun parinferlib--handle-cursor-delta (result)
-  (let* ((cursor-dx (gethash :cursorDx result))
-         (cursor-line (gethash :cursorLine result))
-         (line-no (gethash :lineNo result))
-         (cursor-x (gethash :cursorX result))
-         (x (gethash :x result))
-         (indent-delta (gethash :indentDelta result))
+(defun parinferlib--handle-cursor-delta ()
+  (let* ((cursor-dx parinferlib--cursorDx)
+         (cursor-line parinferlib--cursorLine)
+         (line-no parinferlib--lineNo)
+         (cursor-x parinferlib--cursorX)
+         (x parinferlib--x)
+         (indent-delta parinferlib--indentDelta)
          (has-delta? (and cursor-dx
                           (equal cursor-line line-no)
                           (equal cursor-x x))))
     (when has-delta?
-      (puthash :indentDelta (+ indent-delta cursor-dx) result))))
+      (setq parinferlib--indentDelta (+ indent-delta cursor-dx)))))
 
 ;;------------------------------------------------------------------------------
 ;; Paren Trail functions
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--reset-paren-trail (result line-no x)
-  (puthash :parenTrailLineNo line-no result)
-  (puthash :parenTrailStartX x result)
-  (puthash :parenTrailEndX x result)
-  (puthash :parenTrailOpeners '() result)
-  (puthash :maxIndent nil result))
+(defun parinferlib--reset-paren-trail (line-no x)
+  (setq parinferlib--parenTrailLineNo line-no
+        parinferlib--parenTrailStartX x
+        parinferlib--parenTrailEndX x
+        parinferlib--parenTrailOpeners nil
+        parinferlib--maxIndent nil))
 
-(defun parinferlib--update-paren-trail-bounds (result)
-  (let* ((lines (gethash :lines result))
-         (line-no (gethash :lineNo result))
+(defun parinferlib--update-paren-trail-bounds ()
+  (let* ((lines parinferlib--lines)
+         (line-no parinferlib--lineNo)
          (line (aref lines line-no))
-         (x (gethash :x result))
+         (x parinferlib--x)
          (prev-ch (if (> x 0)
                       (string (aref line (1- x)))
                     nil))
-         (ch (gethash :ch result))
-         (should-reset? (and (gethash :isInCode result)
+         (ch parinferlib--ch)
+         (should-reset? (and parinferlib--isInCode
                              (or (not (parinferlib--close-paren? ch))
                                  (string= prev-ch parinferlib--BACKSLASH))
                              (not (string= ch ""))
@@ -439,19 +464,19 @@ RESULT is the current state."
                                  (string= prev-ch parinferlib--BACKSLASH))
                              (not (string= ch parinferlib--DOUBLE_SPACE)))))
     (when should-reset?
-      (parinferlib--reset-paren-trail result line-no (1+ x)))))
+      (parinferlib--reset-paren-trail line-no (1+ x)))))
 
-(defun parinferlib--clamp-paren-trail-to-cursor (result)
-  (let* ((start-x (gethash :parenTrailStartX result))
-         (end-x (gethash :parenTrailEndX result))
-         (cursor-clamping? (and (parinferlib--cursor-on-right? result start-x)
-                                (not (parinferlib--cursor-in-comment? result)))))
+(defun parinferlib--clamp-paren-trail-to-cursor ()
+  (let* ((start-x parinferlib--parenTrailStartX)
+         (end-x parinferlib--parenTrailEndX)
+         (cursor-clamping? (and (parinferlib--cursor-on-right? start-x)
+                                (not (parinferlib--cursor-in-comment?)))))
     (when cursor-clamping?
-      (let* ((cursor-x (gethash :cursorX result))
+      (let* ((cursor-x parinferlib--cursorX)
              (new-start-x (max start-x cursor-x))
              (new-end-x (max end-x cursor-x))
-             (line-no (gethash :lineNo result))
-             (lines (gethash :lines result))
+             (line-no parinferlib--lineNo)
+             (lines parinferlib--lines)
              (line (aref lines line-no))
              (remove-count 0)
              (i start-x))
@@ -460,26 +485,26 @@ RESULT is the current state."
             (setq remove-count (1+ remove-count)))
           (setq i (1+ i)))
         (when (> remove-count 0)
-          (let* ((openers (gethash :parenTrailOpeners result))
+          (let* ((openers parinferlib--parenTrailOpeners)
                  (new-openers (nbutlast openers remove-count)))
-            (puthash :parenTrailOpeners new-openers result)))
-        (puthash :parenTrailStartX new-start-x result)
-        (puthash :parenTrailEndX new-end-x result)))))
+            (setq parinferlib--parenTrailOpeners new-openers)))
+        (setq parinferlib--parenTrailStartX new-start-x
+              parinferlib--parenTrailEndX new-end-x)))))
 
-(defun parinferlib--pop-paren-trail (result)
-  (let ((start-x (gethash :parenTrailStartX result))
-        (end-x (gethash :parenTrailEndX result)))
+(defun parinferlib--pop-paren-trail ()
+  (let ((start-x parinferlib--parenTrailStartX)
+        (end-x parinferlib--parenTrailEndX))
     (when (not (equal start-x end-x))
-      (let ((openers (gethash :parenTrailOpeners result))
-            (paren-stack (gethash :parenStack result)))
+      (let ((openers parinferlib--parenTrailOpeners)
+            (paren-stack parinferlib--parenStack))
         (while openers
           (setq paren-stack (cons (pop openers) paren-stack)))
-        (puthash :parenTrailOpeners openers result)
-        (puthash :parenStack paren-stack result)))))
+        (setq parinferlib--parenTrailOpeners openers
+              parinferlib--parenStack paren-stack)))))
 
-(defun parinferlib--correct-paren-trail (result indent-x)
+(defun parinferlib--correct-paren-trail (indent-x)
   (let ((parens "")
-        (paren-stack (gethash :parenStack result))
+        (paren-stack parinferlib--parenStack)
         (break? nil))
     (while (and (> (length paren-stack) 0)
                 (not break?))
@@ -490,21 +515,21 @@ RESULT is the current state."
             (progn (pop paren-stack)
                    (setq parens (concat parens (gethash opener-ch parinferlib--PARENS))))
           (setq break? t))))
-    (puthash :parenStack paren-stack result)
-    (let ((paren-trail-line-no (gethash :parenTrailLineNo result))
-          (paren-trail-start-x (gethash :parenTrailStartX result))
-          (paren-trail-end-x (gethash :parenTrailEndX result)))
-      (parinferlib--replace-within-line result paren-trail-line-no paren-trail-start-x paren-trail-end-x parens))))
+    (setq parinferlib--parenStack paren-stack)
+    (let ((paren-trail-line-no parinferlib--parenTrailLineNo)
+          (paren-trail-start-x parinferlib--parenTrailStartX)
+          (paren-trail-end-x parinferlib--parenTrailEndX))
+      (parinferlib--replace-within-line paren-trail-line-no paren-trail-start-x paren-trail-end-x parens))))
 
-(defun parinferlib--clean-paren-trail (result)
-  (let* ((start-x (gethash :parenTrailStartX result))
-         (end-x (gethash :parenTrailEndX result))
-         (line-no (gethash :lineNo result))
-         (paren-trail-line-no (gethash :parenTrailLineNo result))
+(defun parinferlib--clean-paren-trail ()
+  (let* ((start-x parinferlib--parenTrailStartX)
+         (end-x parinferlib--parenTrailEndX)
+         (line-no parinferlib--lineNo)
+         (paren-trail-line-no parinferlib--parenTrailLineNo)
          (exit-early? (or (equal start-x end-x)
                           (not (equal line-no paren-trail-line-no)))))
     (when (not exit-early?)
-      (let* ((lines (gethash :lines result))
+      (let* ((lines parinferlib--lines)
              (line (aref lines line-no))
              (new-trail "")
              (space-count 0)
@@ -516,59 +541,59 @@ RESULT is the current state."
               (setq space-count (1+ space-count))))
           (setq i (1+ i)))
         (when (> space-count 0)
-          (parinferlib--replace-within-line result line-no start-x end-x new-trail)
-          (let* ((paren-trail-end-x (gethash :parenTrailEndX result))
+          (parinferlib--replace-within-line line-no start-x end-x new-trail)
+          (let* ((paren-trail-end-x parinferlib--parenTrailEndX)
                  (new-pt-end-x (- paren-trail-end-x space-count)))
-            (puthash :parenTrailEndX new-pt-end-x result)))))))
+            (setq parinferlib--parenTrailEndX new-pt-end-x)))))))
 
-(defun parinferlib--append-paren-trail (result)
-  (let* ((paren-stack (gethash :parenStack result))
+(defun parinferlib--append-paren-trail ()
+  (let* ((paren-stack parinferlib--parenStack)
          (opener (pop paren-stack))
          (opener-ch (parinferlib--stack-elem-ch opener))
          (opener-x (parinferlib--stack-elem-x opener))
          (close-ch (gethash opener-ch parinferlib--PARENS))
-         (paren-trail-line-no (gethash :parenTrailLineNo result))
-         (end-x (gethash :parenTrailEndX result)))
-    (puthash :parenStack paren-stack result)
-    (puthash :maxIndent opener-x result)
-    (parinferlib--insert-within-line result paren-trail-line-no end-x close-ch)
-    (puthash :parenTrailEndX (1+ end-x) result)))
+         (paren-trail-line-no parinferlib--parenTrailLineNo)
+         (end-x parinferlib--parenTrailEndX))
+    (setq parinferlib--parenStack paren-stack)
+    (setq parinferlib--maxIndent opener-x)
+    (parinferlib--insert-within-line paren-trail-line-no end-x close-ch)
+    (setq parinferlib--parenTrailEndX (1+ end-x))))
 
-(defun parinferlib--invalidate-paren-trail (result)
-  (puthash :parenTrailLineNo nil result)
-  (puthash :parenTrailStartX nil result)
-  (puthash :parenTrailEndX nil result)
-  (puthash :parenTrailOpeners '() result))
+(defun parinferlib--invalidate-paren-trail ()
+  (setq parinferlib--parenTrailLineNo nil)
+  (setq parinferlib--parenTrailStartX nil)
+  (setq parinferlib--parenTrailEndX nil)
+  (setq parinferlib--parenTrailOpeners '()))
 
-(defun parinferlib--finish-new-paren-trail (result)
-  (let* ((in-str? (gethash :isInStr result))
-         (mode (gethash :mode result))
-         (line-no (gethash :lineNo result))
-         (cursor-line (gethash :cursorLine result)))
+(defun parinferlib--finish-new-paren-trail ()
+  (let* ((in-str? parinferlib--isInStr)
+         (mode parinferlib--mode)
+         (line-no parinferlib--lineNo)
+         (cursor-line parinferlib--cursorLine))
     (cond
      (in-str?
-      (parinferlib--invalidate-paren-trail result))
+      (parinferlib--invalidate-paren-trail))
 
      ((equal mode :indent)
       (progn
-        (parinferlib--clamp-paren-trail-to-cursor result)
-        (parinferlib--pop-paren-trail result)))
+        (parinferlib--clamp-paren-trail-to-cursor)
+        (parinferlib--pop-paren-trail)))
 
 
      ((and (equal mode :paren)
            (not (equal line-no cursor-line)))
-      (parinferlib--clean-paren-trail result)))))
+      (parinferlib--clean-paren-trail)))))
 
 ;;------------------------------------------------------------------------------
 ;; Indentation functions
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--correct-indent (result)
-  (let* ((orig-indent (gethash :x result))
+(defun parinferlib--correct-indent ()
+  (let* ((orig-indent parinferlib--x)
          (new-indent orig-indent)
          (min-indent 0)
-         (max-indent (gethash :maxIndent result))
-         (paren-stack (gethash :parenStack result))
+         (max-indent parinferlib--maxIndent)
+         (paren-stack parinferlib--parenStack)
          (opener (car paren-stack)))
     (when opener
       (let* ((opener-x (parinferlib--stack-elem-x opener))
@@ -578,191 +603,187 @@ RESULT is the current state."
     (setq new-indent (parinferlib--clamp new-indent min-indent max-indent))
     (when (not (equal new-indent orig-indent))
       (let* ((indent-str (make-string new-indent (aref parinferlib--BLANK_SPACE 0)))
-             (line-no (gethash :lineNo result))
-             (indent-delta (gethash :indentDelta result))
+             (line-no parinferlib--lineNo)
+             (indent-delta parinferlib--indentDelta)
              (new-indent-delta (+ indent-delta (- new-indent orig-indent))))
-        (parinferlib--replace-within-line result line-no 0 orig-indent indent-str)
-        (puthash :x new-indent result)
-        (puthash :indentDelta new-indent-delta result)))))
+        (parinferlib--replace-within-line line-no 0 orig-indent indent-str)
+        (setq parinferlib--x new-indent)
+        (setq parinferlib--indentDelta new-indent-delta)))))
 
-(defun parinferlib--try-preview-cursor-scope (result)
-  (when (gethash :canPreviewCursorScope result)
-    (let ((cursor-x (gethash :cursorX result))
-          (cursor-line (gethash :cursorLine result))
-          (result-x (gethash :x result)))
+(defun parinferlib--try-preview-cursor-scope ()
+  (when parinferlib--canPreviewCursorScope
+    (let ((cursor-x parinferlib--cursorX)
+          (cursor-line parinferlib--cursorLine)
+          (result-x parinferlib--x))
       (when (> cursor-x result-x)
-        (parinferlib--correct-paren-trail result cursor-x)
-        (parinferlib--reset-paren-trail result cursor-line cursor-x))
-      (puthash :canPreviewCursorScope nil result))))
+        (parinferlib--correct-paren-trail cursor-x)
+        (parinferlib--reset-paren-trail cursor-line cursor-x))
+      (setq parinferlib--canPreviewCursorScope nil))))
 
-(defun parinferlib--on-indent (result)
-  (puthash :trackingIndent nil result)
-  (when (gethash :quoteDanger result)
-    (throw 'parinferlib-error (parinferlib--create-error result 'quote-danger nil nil)))
-  (let ((mode (gethash :mode result))
-        (x (gethash :x result)))
+(defun parinferlib--on-indent ()
+  (setq parinferlib--trackingIndent nil)
+  (when parinferlib--quoteDanger
+    (throw 'parinferlib-error (parinferlib--create-error 'quote-danger nil nil)))
+  (let ((mode parinferlib--mode)
+        (x parinferlib--x))
     (when (equal mode :indent)
-      (parinferlib--try-preview-cursor-scope result)
-      (parinferlib--correct-paren-trail result x))
+      (parinferlib--try-preview-cursor-scope)
+      (parinferlib--correct-paren-trail x))
     (when (equal mode :paren)
-      (parinferlib--correct-indent result))))
+      (parinferlib--correct-indent))))
 
-(defun parinferlib--on-leading-close-paren (result)
-  (puthash :skipChar t result)
-  (puthash :trackingIndent t result)
-  (when (equal :paren (gethash :mode result))
-    (let* ((paren-stack (gethash :parenStack result))
-           (ch (gethash :ch result)))
+(defun parinferlib--on-leading-close-paren ()
+  (setq parinferlib--skipChar t)
+  (setq parinferlib--trackingIndent t)
+  (when (equal :paren parinferlib--mode)
+    (let* ((paren-stack parinferlib--parenStack)
+           (ch parinferlib--ch))
       (when (parinferlib--valid-close-paren? paren-stack ch)
-        (if (parinferlib--cursor-on-left? result)
-            (progn (puthash :skipChar nil result)
-                   (parinferlib--on-indent result))
-          (parinferlib--append-paren-trail result))))))
+        (if (parinferlib--cursor-on-left?)
+            (progn (setq parinferlib--skipChar nil)
+                   (parinferlib--on-indent))
+          (parinferlib--append-paren-trail))))))
 
-(defun parinferlib--check-indent (result)
-  (let ((ch (gethash :ch result))
-        (result-x (gethash :x result))
-        (cursor-x (gethash :cursorX result))
-        (line-no (gethash :lineNo result)))
+(defun parinferlib--check-indent ()
+  (let ((ch parinferlib--ch)
+        (result-x parinferlib--x)
+        (cursor-x parinferlib--cursorX)
+        (line-no parinferlib--lineNo))
     (cond ((parinferlib--close-paren? ch)
-           (parinferlib--on-leading-close-paren result))
+           (parinferlib--on-leading-close-paren))
 
           ((string= ch parinferlib--SEMICOLON)
-           (puthash :trackingIndent nil result))
+           (setq parinferlib--trackingIndent nil))
 
           ((not (or (string= ch parinferlib--NEWLINE)
                     (string= ch parinferlib--BLANK_SPACE)
                     (string= ch parinferlib--TAB)))
-           (parinferlib--on-indent result)))))
+           (parinferlib--on-indent)))))
 
-(defun parinferlib--init-preview-cursor-scope (result)
-  (let* ((preview-cursor-scope (gethash :previewCursorScope result))
-         (cursor-line (gethash :cursorLine result))
-         (line-no (gethash :lineNo result))
-         (lines (gethash :lines result))
+(defun parinferlib--init-preview-cursor-scope ()
+  (let* ((preview-cursor-scope parinferlib--previewCursorScope)
+         (cursor-line parinferlib--cursorLine)
+         (line-no parinferlib--lineNo)
+         (lines parinferlib--lines)
          (line (aref lines line-no))
          (semicolon-x (string-match ";" line))
-         (cursor-x (gethash :cursorX result)))
+         (cursor-x parinferlib--cursorX))
     (when (and preview-cursor-scope
                (equal cursor-line line-no))
-      (puthash :canPreviewCursorScope
-               (and (gethash :trackingIndent result)
-                    (string-match parinferlib--STANDALONE_PAREN_TRAIL line)
-                    (or (not semicolon-x)
-                        (<= cursor-x semicolon-x)))
-               result))))
+      (setq parinferlib--canPreviewCursorScope
+            (and parinferlib--trackingIndent
+                 (string-match parinferlib--STANDALONE_PAREN_TRAIL line)
+                 (or (not semicolon-x)
+                     (<= cursor-x semicolon-x)))))))
 
-(defun parinferlib--init-indent (result)
-  (let ((mode (gethash :mode result))
-        (in-str? (gethash :isInStr result)))
+(defun parinferlib--init-indent ()
+  (let ((mode parinferlib--mode)
+        (in-str? parinferlib--isInStr))
     (when (equal :indent mode)
       ;; length of list > 0 means the same as the list not being null
-      (puthash :trackingIndent (and (gethash :parenStack result)
-                                    (not in-str?))
-               result)
-      (parinferlib--init-preview-cursor-scope result))
+      (setq parinferlib--trackingIndent (and parinferlib--parenStack
+                                             (not in-str?)))
+      (parinferlib--init-preview-cursor-scope))
     (when (equal :paren mode)
-      (puthash :trackingIndent (not in-str?) result))))
+      (setq parinferlib--trackingIndent (not in-str?)))))
 
-(defun parinferlib--set-tab-stops (result)
-  (let ((cursor-line (gethash :cursorLine result))
-        (line-no (gethash :lineNo result))
-        (mode (gethash :mode result)))
+(defun parinferlib--set-tab-stops ()
+  (let ((cursor-line parinferlib--cursorLine)
+        (line-no parinferlib--lineNo)
+        (mode parinferlib--mode))
     (when (and (equal cursor-line line-no)
                (equal :indent mode))
-      (let ((current-stops (gethash :tabStops result))
+      (let ((current-stops parinferlib--tabStops)
             (new-stops '()))
-        (dolist (stackel (gethash :parenStack result))
+        (dolist (stackel parinferlib--parenStack)
           (let ((new-stop (list :ch (parinferlib--stack-elem-ch stackel)
                                 :line-no (parinferlib--stack-elem-line-no stackel)
                                 :x (parinferlib--stack-elem-x stackel))))
             (setq new-stops (push new-stop new-stops))))
-        (puthash :tabStops (append current-stops new-stops) result)))))
+        (setq parinferlib--tabStops (append current-stops new-stops))))))
 
 ;;------------------------------------------------------------------------------
 ;; High-level processing functions
 ;;------------------------------------------------------------------------------
 
-(defun parinferlib--process-char (result ch)
+(defun parinferlib--process-char (ch)
   (let* ((orig-ch ch)
-         (mode (gethash :mode result)))
-    (puthash :ch ch result)
-    (puthash :skipChar nil result)
+         (mode parinferlib--mode))
+    (setq parinferlib--ch ch)
+    (setq parinferlib--skipChar nil)
 
     (when (equal :paren mode)
-      (parinferlib--handle-cursor-delta result))
+      (parinferlib--handle-cursor-delta))
 
-    (when (gethash :trackingIndent result)
-      (parinferlib--check-indent result))
+    (when parinferlib--trackingIndent
+      (parinferlib--check-indent))
 
-    (if (gethash :skipChar result)
-        (puthash :ch "" result)
-      (parinferlib--on-char result ch)
-      (parinferlib--update-paren-trail-bounds result))
+    (if parinferlib--skipChar
+        (setq parinferlib--ch "")
+      (parinferlib--on-char ch)
+      (parinferlib--update-paren-trail-bounds))
 
-    (parinferlib--commit-char result orig-ch)))
+    (parinferlib--commit-char orig-ch)))
 
-(defun parinferlib--process-line (result line)
-  (parinferlib--init-line result line)
-  (parinferlib--init-indent result)
-  (parinferlib--set-tab-stops result)
+(defun parinferlib--process-line (line)
+  (parinferlib--init-line line)
+  (parinferlib--init-indent)
+  (parinferlib--set-tab-stops)
   (let* ((i 0)
          (chars (concat line parinferlib--NEWLINE))
          (chars-length (length chars)))
     (while (< i chars-length)
-      (parinferlib--process-char result (string (aref chars i)))
+      (parinferlib--process-char (string (aref chars i)))
       (setq i (1+ i))))
 
-  (when (equal (gethash :lineNo result)
-               (gethash :parenTrailLineNo result))
-    (parinferlib--finish-new-paren-trail result)))
+  (when (equal parinferlib--lineNo
+               parinferlib--parenTrailLineNo)
+    (parinferlib--finish-new-paren-trail)))
 
-(defun parinferlib--finalize-result (result)
-  (when (gethash :quoteDanger result)
+(defun parinferlib--finalize-result ()
+  (when parinferlib--quoteDanger
     (throw 'parinferlib-error
-           (parinferlib--create-error result 'quote-danger nil nil)))
-  (when (gethash :isInStr result)
+           (parinferlib--create-error 'quote-danger nil nil)))
+  (when parinferlib--isInStr
     (throw 'parinferlib-error
-           (parinferlib--create-error result 'unclosed-quote nil nil)))
-  (let* ((paren-stack (gethash :parenStack result))
-         (mode (gethash :mode result)))
+           (parinferlib--create-error 'unclosed-quote nil nil)))
+  (let* ((paren-stack parinferlib--parenStack)
+         (mode parinferlib--mode))
     (when paren-stack
       (when (equal mode :paren)
-        (let* ((paren-stack (gethash :parenStack result))
+        (let* ((paren-stack parinferlib--parenStack)
                (opener (car paren-stack))
                (opener-line-no (parinferlib--stack-elem-line-no opener))
                (opener-x (parinferlib--stack-elem-x opener)))
           (throw 'parinferlib-error
-                 (parinferlib--create-error result 'unclosed-paren opener-line-no opener-x))))
+                 (parinferlib--create-error 'unclosed-paren opener-line-no opener-x))))
       (when (equal mode :indent)
-        (puthash :x 0 result)
-        (parinferlib--on-indent result))))
-  (puthash :success t result))
+        (setq parinferlib--x 0)
+        (parinferlib--on-indent))))
+  (setq parinferlib--success t))
 
-(defun parinferlib--process-error (result err)
-  (puthash :success nil result)
-  (puthash :error err result))
+(defun parinferlib--process-error (err)
+  (setq parinferlib--success nil)
+  (setq parinferlib--error err))
 
 (defun parinferlib--process-text (text mode options)
-  "Process TEXT in MODE with OPTIONS.
-Return the result hash-table."
-  (let* ((result (parinferlib--create-initial-result text mode options))
-         (orig-lines (gethash :origLines result))
+  "Process TEXT in MODE with OPTIONS."
+  (parinferlib--initialize text mode options)
+  (let* ((orig-lines parinferlib--origLines)
          (lines-length (length orig-lines))
          (i 0)
          (err (catch 'parinferlib-error
                 (while (< i lines-length)
-                  (parinferlib--process-line result (aref orig-lines i))
+                  (parinferlib--process-line (aref orig-lines i))
                   (setq i (1+ i)))
-                (parinferlib--finalize-result result)
+                (parinferlib--finalize-result)
                 nil)))
     (when err
-      (parinferlib--process-error result err))
-    result))
+      (parinferlib--process-error err))))
 
-(defun parinferlib--get-changed-lines (result)
-  (let* ((orig-lines (gethash :origLines result))
-         (lines (gethash :lines result))
+(defun parinferlib--get-changed-lines ()
+  (let* ((orig-lines parinferlib--origLines)
+         (lines parinferlib--lines)
          (lines-length (min (length orig-lines) (length lines)))
          (changed-lines nil))
     (dotimes (i lines-length changed-lines)
@@ -771,21 +792,21 @@ Return the result hash-table."
         (unless (string= line orig-line)
           (push (list :line-no i :line line) changed-lines))))))
 
-(defun parinferlib--public-result (result)
+(defun parinferlib--public-result ()
   "Return a plist for the Public API."
-  (if (gethash :success result)
-      (let* ((lines (gethash :lines result))
+  (if parinferlib--success
+      (let* ((lines parinferlib--lines)
              (result-text (mapconcat 'identity lines parinferlib--NEWLINE))
-             (cursor-x (gethash :cursorX result))
-             (tab-stops (gethash :tabStops result)))
+             (cursor-x parinferlib--cursorX)
+             (tab-stops parinferlib--tabStops))
         (list :success t
               :cursor-x cursor-x
               :text result-text
-              :changed-lines (parinferlib--get-changed-lines result)
+              :changed-lines (parinferlib--get-changed-lines)
               :tab-stops tab-stops))
-    (let ((orig-text (gethash :origText result))
-          (public-error (gethash :error result))
-          (orig-cursor-x (gethash :origCursorX result)))
+    (let ((orig-text parinferlib--origText)
+          (public-error parinferlib--error)
+          (orig-cursor-x parinferlib--origCursorX))
       (list :success nil
             :text orig-text
             :cursor-x orig-cursor-x
@@ -800,16 +821,16 @@ Return the result hash-table."
 
 TEXT should be a string to process with Parinfer.
 OPTIONS should be a plist; see README.md for all options."
-  (let ((result (parinferlib--process-text text :indent options)))
-    (parinferlib--public-result result)))
+  (parinferlib--process-text text :indent options)
+  (parinferlib--public-result))
 
 (defun parinferlib-paren-mode (text &optional options)
   "Paren Mode public function.
 
 TEXT should be a string to process with Parinfer.
 OPTIONS should be a plist; see README.md for all options."
-  (let ((result (parinferlib--process-text text :paren options)))
-    (parinferlib--public-result result)))
+  (parinferlib--process-text text :paren options)
+  (parinferlib--public-result))
 
 (provide 'parinferlib)
 
