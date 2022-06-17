@@ -223,7 +223,7 @@ X: current position."
   (let* ((orig-length (length orig))
          (head (substring orig 0 start))
          (tail (if (>= end orig-length)
-                   ""
+                 ""
                  (substring orig end))))
     (concat head replace tail)))
 
