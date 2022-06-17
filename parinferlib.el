@@ -453,7 +453,7 @@ CH is the character we're processing."
          (line (aref lines line-no))
          (x parinferlib--x)
          (prev-ch (if (> x 0)
-                      (string (aref line (1- x)))
+                    (string (aref line (1- x)))
                     nil))
          (ch parinferlib--ch)
          (should-reset? (and parinferlib--isInCode
