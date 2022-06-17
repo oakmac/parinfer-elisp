@@ -537,7 +537,7 @@ CH is the character we're processing."
         (while (< i end-x)
           (let ((ch (string (aref line i))))
             (if (parinferlib--close-paren? ch)
-                (setq new-trail (concat new-trail ch))
+              (setq new-trail (concat new-trail ch))
               (setq space-count (1+ space-count))))
           (setq i (1+ i)))
         (when (> space-count 0)
